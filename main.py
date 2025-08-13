@@ -2,6 +2,10 @@ import math
 from scipy.stats import norm
 
 def ab_test(visitors_a, conversions_a, visitors_b, conversions_b, alpha=0.05):
+    if visitors_a <= 0 or visitors_b <= 0:
+        raise ValueError("Visitors must be greater than zero")
+    if conversions_a <0 or conversions_b < 0:
+        raise ValueError("Conversions cannot be negative")
     if conversions_a > visitors_a or conversions_b > visitors_b:
         raise ValueError("Conversions cannot be greater than visitors.")
 
