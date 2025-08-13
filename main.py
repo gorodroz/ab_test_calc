@@ -6,6 +6,25 @@ import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 
+def sample_size(p, mde, alpha=0.05, power=0.8):
+    if not (0<p<1):
+        raise ValueError("Baseline conversion rate (p) must be between 0 and 1 (exclusive).")
+    if mde <= 0 or mde >= 1:
+        raise  ValueError("Minimum detectable effect (mde) must be between 0 and 1 (exclusive).")
+    if not (0<alpha<1):
+        raise ValueError("Significance level (alpha) must be between 0 and 1.")
+    if not (0<power<1):
+        raise   ValueError("Statistical power must be between 0 and 1.")
+
+    z_alpha=norm.ppf(1-alpha/2)
+    z_beta=norm.ppf(power)
+
+    p_var=2*p*(1-p)
+    n_per_grp=((z_alpha+z_beta)**2*p_var)/(mde**2)
+
+    return math.ceil(n_per_grp)
+
+
 def ab_test(visitors_a, conversions_a, visitors_b, conversions_b, alpha=0.05):
     if visitors_a <= 0 or visitors_b <= 0:
         raise ValueError("Visitors must be greater than zero")
@@ -56,6 +75,15 @@ def plot_confidence_interval(diff, ci_lower, ci_upper):
     print("Graph saved as ab_test_ci.png")
 
 if __name__ == "__main__":
+    print("Sample Size Calculator")
+    baseline = float(input("Enter baseline conversion rate (e.g. 0.1 for 10%): "))
+    mde = float(input("Enter minimum detectable effect (e.g. 0.02 for +2%): "))
+    alpha = float(input("Enter significance level (default 0.05): ") or 0.05)
+    power = float(input("Enter statistical power (default 0.8): ") or 0.8)
+
+    needed_n = sample_size(baseline, mde, alpha, power)
+    print(f"\nYou need at least {needed_n} visitors per group for the test.\n")
+
     print("A/B test calculator")
     visitors_a = int(input("Enter the visitors in Group A: "))
     conversions_a = int(input("Enter the conversions in Group A: "))
