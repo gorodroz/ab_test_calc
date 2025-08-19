@@ -99,6 +99,56 @@ def bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions
 
     return loss_b, expected_value, a_dist, b_dist
 
+def bayesian_decision_analysis(visitors_a, conversions_a, visitoris_b, conversions_b, samples=100_000, value_per_conversion=100):
+    a_alpha, a_beta=1+conversions_a, 1+(visitors_a-conversions_a)
+    b_alpha, b_beta=1+conversions_b, 1+(visitoris_b-conversions_b)
+
+    a_dist=numpy.random.beta(a_alpha, a_beta, samples)
+    b_dist=numpy.random.beta(b_alpha, b_beta, samples)
+
+    diff=b_dist-a_dist
+
+    prob_b_better=(diff>0).mean()
+
+    expected_value=numpy.mean(diff)*value_per_conversion*visitors_b
+
+    regret=numpy.mean((-diff)*(diff<0))*value_per_conversion*visitors_b
+
+    expected_utility=prob_b_better*expected_value-(1-prob_b_better)*regret
+
+    return {
+        "prob_b_better":prob_b_better,
+        "expected_value":expected_value,
+        "expected_regret":regret,
+        "expected_utility":expected_utility
+    }
+
+def sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b, samples=50_000, threshold_high=0.99, threshold_low=0.01):
+    """
+    Perform sequential Bayesian monitoring for an A/B test.
+
+    Returns:
+        decision (str), prob_b_better (float)
+    """
+    #Posterior for both groups
+    a_alpha, a_beta = 1+conversions_a, 1+(visitors_a-conversions_a)
+    b_alpha, b_beta = 1+conversions_b, 1+(visitors_b-conversions_b)
+
+    a_dist=numpy.random.beta(a_alpha, a_beta, samples)
+    b_dist=numpy.random.beta(b_alpha, b_beta, samples)
+
+    prob_b_better=(b_dist>a_dist).mean()
+
+    #Decision making
+    if prob_b_better>threshold_high:
+        decision="Stop: Variant B is clearly better"
+    elif prob_b_better<threshold_low:
+        decision="Stop: Variant A is clearly better"
+    else:
+        decision="Continue: Not enough evidence yet"
+
+    return decision, prob_b_better
+
 def plot_expected_metrics(a_dist, b_dist, loss_b, expected_value):
     plt.figure(figsize=(6,4))
 
@@ -187,3 +237,16 @@ if __name__ == "__main__":
     print(f"Expected Value if choosing B: ${expected_value:.2f}")
 
     plot_expected_metrics(a_dist, b_dist, loss_b, expected_value)
+
+    print("\n Sequential Bayesian Monitoring")
+    decision, prob = sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b)
+    print(f"Probability that B is better: {prob:.2%}")
+    print("Decision:", decision)
+
+    decision = bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversions_b, value_per_conversion=value_per_conversion)
+
+    print("\n Bayesian Decision Analysis")
+    print(f"Probability B > A: {decision['prob_b_better']:.2%}")
+    print(f"Expected Value choosing B: ${decision['expected_value']:.2f}")
+    print(f"Expected Regret choosing B: ${decision['expected_regret']:.2f}")
+    print(f"Expected Utility: ${decision['expected_utility']:.2f}")

@@ -1,6 +1,3 @@
 .venv
 .idea
-.png
-ab_test_ci.png
-bayesian_metrics.png
-bayesian_posteriors.png
+*.png
