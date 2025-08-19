@@ -1,5 +1,5 @@
 import math
-
+import numpy
 from matplotlib.lines import lineStyles
 from scipy.stats import norm
 import matplotlib
@@ -61,6 +61,17 @@ def ab_test(visitors_a, conversions_a, visitors_b, conversions_b, alpha=0.05):
         "ci_upper": ci_upper
     }
 
+def bayesian_ad_test(visitors_a, conversions_a, visitors_b, conversions_b, samples=100_000):
+    a_alpha, a_beta = 1+conversions_a, 1+(visitors_a-conversions_a)
+    b_alpha, b_beta = 1+conversions_b, 1+(visitors_b-conversions_b)
+
+    a_dist=numpy.random.beta(a_alpha, a_beta, samples)
+    b_dist=numpy.random.beta(b_alpha, b_beta, samples)
+
+    prob_b_better=(b_dist>a_dist).mean()
+
+    return prob_b_better
+
 def plot_confidence_interval(diff, ci_lower, ci_upper):
     plt.figure(figsize=(5, 2))
     plt.errorbar(x=diff, y=0, xerr=[[diff-ci_lower], [ci_upper-diff]], fmt="o", color="blue", ecolor="black",
@@ -106,4 +117,10 @@ if __name__ == "__main__":
     print(f"p-value: {result['p_value']:.4f}")
     print("Statistically Significant?", "Yes" if result['significant'] else "No")
 
+    prob_b_better = bayesian_ad_test(visitors_a, conversions_a, visitors_b, conversions_b)
+    print("\n Bayesian Results")
+    print(f"Probability that B is better than A: {prob_b_better:.2%}")
+
     plot_confidence_interval(result['diff'], result['ci_lower'], result['ci_upper'])
+
+    #add func Байесовский вывод
