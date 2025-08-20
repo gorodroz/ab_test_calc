@@ -1,7 +1,6 @@
 import math
 import numpy
-from matplotlib.lines import lineStyles
-from scipy.stats import norm, beta
+from scipy.stats import norm
 import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('Agg')
@@ -86,41 +85,47 @@ def bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b, sampl
 
     return prob_b_better
 
-def bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b, samples=100_000, value_per_conversion=100):
-    a_alpha, a_beta = 1+conversions_a, 1+(visitors_a-conversions_a)
-    b_alpha, b_beta = 1+conversions_b, 1+(visitors_b-conversions_b)
+def bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b,samples=100_000, value_per_conversion=100):
+    a_alpha, a_beta = 1 + conversions_a, 1 + (visitors_a - conversions_a)
+    b_alpha, b_beta = 1 + conversions_b, 1 + (visitors_b - conversions_b)
 
-    a_dist=numpy.random.beta(a_alpha, a_beta, samples)
-    b_dist=numpy.random.beta(b_alpha, b_beta, samples)
+    a_dist = numpy.random.beta(a_alpha, a_beta, samples)
+    b_dist = numpy.random.beta(b_alpha, b_beta, samples)
 
-    loss_b=numpy.mean((a_dist-b_dist)*(a_dist>b_dist))
+    loss_b = numpy.mean((a_dist - b_dist) * (a_dist > b_dist)) * value_per_conversion
+    loss_a = numpy.mean((b_dist - a_dist) * (b_dist > a_dist)) * value_per_conversion
 
-    expected_value=numpy.mean((b_dist-a_dist)*value_per_conversion)
-
-    return loss_b, expected_value, a_dist, b_dist
-
-def bayesian_decision_analysis(visitors_a, conversions_a, visitoris_b, conversions_b, samples=100_000, value_per_conversion=100):
-    a_alpha, a_beta=1+conversions_a, 1+(visitors_a-conversions_a)
-    b_alpha, b_beta=1+conversions_b, 1+(visitoris_b-conversions_b)
-
-    a_dist=numpy.random.beta(a_alpha, a_beta, samples)
-    b_dist=numpy.random.beta(b_alpha, b_beta, samples)
-
-    diff=b_dist-a_dist
-
-    prob_b_better=(diff>0).mean()
-
-    expected_value=numpy.mean(diff)*value_per_conversion*visitors_b
-
-    regret=numpy.mean((-diff)*(diff<0))*value_per_conversion*visitors_b
-
-    expected_utility=prob_b_better*expected_value-(1-prob_b_better)*regret
+    expected_value_b = numpy.mean(b_dist - a_dist) * value_per_conversion
+    expected_value_a = numpy.mean(a_dist - b_dist) * value_per_conversion
 
     return {
-        "prob_b_better":prob_b_better,
-        "expected_value":expected_value,
-        "expected_regret":regret,
-        "expected_utility":expected_utility
+        "expected_loss_b": float(loss_b),
+        "expected_loss_a": float(loss_a),
+        "expected_value_b": float(expected_value_b),
+        "expected_value_a": float(expected_value_a),
+        "a_dist": a_dist,
+        "b_dist": b_dist,
+    }
+
+def bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversions_b,samples=100_000, value_per_conversion=100):
+    a_alpha, a_beta = 1 + conversions_a, 1 + (visitors_a - conversions_a)
+    b_alpha, b_beta = 1 + conversions_b, 1 + (visitors_b - conversions_b)
+
+    a_dist = numpy.random.beta(a_alpha, a_beta, samples)
+    b_dist = numpy.random.beta(b_alpha, b_beta, samples)
+
+    diff = b_dist - a_dist
+    prob_b_better = (diff > 0).mean()
+
+    expected_value = numpy.mean(diff) * value_per_conversion * visitors_b
+    regret = numpy.mean((-diff) * (diff < 0)) * value_per_conversion * visitors_b
+    expected_utility = prob_b_better * expected_value - (1 - prob_b_better) * regret
+
+    return {
+        "prob_b_better": float(prob_b_better),
+        "expected_value": float(expected_value),
+        "expected_regret": float(regret),
+        "expected_utility": float(expected_utility),
     }
 
 def sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b, samples=50_000, threshold_high=0.99, threshold_low=0.01):
@@ -131,23 +136,29 @@ def sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conver
         decision (str), prob_b_better (float)
     """
     #Posterior for both groups
-    a_alpha, a_beta = 1+conversions_a, 1+(visitors_a-conversions_a)
-    b_alpha, b_beta = 1+conversions_b, 1+(visitors_b-conversions_b)
+    a_alpha, a_beta = 1 + conversions_a, 1 + (visitors_a - conversions_a)
+    b_alpha, b_beta = 1 + conversions_b, 1 + (visitors_b - conversions_b)
 
-    a_dist=numpy.random.beta(a_alpha, a_beta, samples)
-    b_dist=numpy.random.beta(b_alpha, b_beta, samples)
+    a_dist = numpy.random.beta(a_alpha, a_beta, samples)
+    b_dist = numpy.random.beta(b_alpha, b_beta, samples)
 
-    prob_b_better=(b_dist>a_dist).mean()
-
+    prob_b_better = (b_dist > a_dist).mean()
+    posterior_mean_a = a_alpha / (a_alpha + a_beta)
+    posterior_mean_b = b_alpha / (b_alpha + b_beta)
     #Decision making
-    if prob_b_better>threshold_high:
-        decision="Stop: Variant B is clearly better"
-    elif prob_b_better<threshold_low:
-        decision="Stop: Variant A is clearly better"
+    if prob_b_better > threshold_high:
+        decision = "Stop: Variant B is clearly better"
+    elif prob_b_better < threshold_low:
+        decision = "Stop: Variant A is clearly better"
     else:
-        decision="Continue: Not enough evidence yet"
+        decision = "Continue: Not enough evidence yet"
 
-    return decision, prob_b_better
+    return {
+        "decision": decision,
+        "prob_b_better": float(prob_b_better),
+        "posterior_mean_a": float(posterior_mean_a),
+        "posterior_mean_b": float(posterior_mean_b),
+    }
 
 def plot_expected_metrics(a_dist, b_dist, loss_b, expected_value):
     plt.figure(figsize=(6,4))
@@ -185,68 +196,109 @@ def plot_confidence_interval(diff, ci_lower, ci_upper):
     plt.savefig("ab_test_ci.png")
     print("Graph saved as ab_test_ci.png")
 
+def main():
+    while True:
+        print("\n=== A/B test calculator ===")
+        print("1. Sample size calculator")
+        print("2. Classic A/B test")
+        print("3. Bayesian A/B test")
+        print("4. Advanced Metrics (Relative Uplift, Expected Loss/Value)")
+        print("5. Bayesian Expected Metrics (Loss & Value)")
+        print("6. Bayesian Decision Analysis (Utility & Regret)")
+        print("7. Sequential Bayesian Monitoring")
+        print("0. Exit")
+        choice = input("Choose an option: ")
+
+        if choice == "1":
+            baseline = float(input("Enter baseline conversion rate (e.g. 0.1 for 10%): "))
+            mde = float(input("Enter minimum detectable effect (e.g. 0.02 for +2%): "))
+            alpha = float(input("Enter significance level (default 0.05): ") or 0.05)
+            power = float(input("Enter statistical power (default 0.8): ") or 0.8)
+            needed_n = sample_size(baseline, mde, alpha, power)
+            print(f"You need at least {needed_n} visitors per group.")
+
+        elif choice == "2":
+            visitors_a = int(input("Enter visitors in Group A: "))
+            conversions_a = int(input("Enter conversions in Group A: "))
+            visitors_b = int(input("Enter visitors in Group B: "))
+            conversions_b = int(input("Enter conversions in Group B: "))
+
+            result = ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+            print("\nClassic A/B Test Results")
+            print(f"Conversion Rate A: {result['cr_a']:.2%}")
+            print(f"Conversion Rate B: {result['cr_b']:.2%}")
+            print(f"Difference: {result['diff']:.2%}")
+            print(f"95% CI: [{result['ci_lower']:.2%}, {result['ci_upper']:.2%}]")
+            print(f"p-value: {result['p_value']:.4f}")
+            print("Significant?", "Yes" if result['significant'] else "No")
+            plot_confidence_interval(result['diff'], result['ci_lower'], result['ci_upper'])
+
+        elif choice == "3":
+            visitors_a = int(input("Enter visitors in Group A: "))
+            conversions_a = int(input("Enter conversions in Group A: "))
+            visitors_b = int(input("Enter visitors in Group B: "))
+            conversions_b = int(input("Enter conversions in Group B: "))
+
+            prob_b_better = bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+            print(f"\nBayesian Result: Probability B > A = {prob_b_better:.2%}")
+
+        elif choice == "4":
+            visitors_a = int(input("Enter visitors in Group A: "))
+            conversions_a = int(input("Enter conversions in Group A: "))
+            visitors_b = int(input("Enter visitors in Group B: "))
+            conversions_b = int(input("Enter conversions in Group B: "))
+
+            result = ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+            rel_uplift = (result['cr_b'] - result['cr_a']) / result['cr_a']
+            print("\nAdvanced Metrics")
+            print(f"Relative Uplift: {rel_uplift:.2%}")
+
+        elif choice == "5":
+            visitors_a = int(input("Enter visitors in Group A: "))
+            conversions_a = int(input("Enter conversions in Group A: "))
+            visitors_b = int(input("Enter visitors in Group B: "))
+            conversions_b = int(input("Enter conversions in Group B: "))
+
+            metrics = bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b)
+            print("\nBayesian Expected Metrics")
+            print(f"Expected Loss choosing B: {metrics['expected_loss_b']:.4f}")
+            print(f"Expected Loss choosing A: {metrics['expected_loss_a']:.4f}")
+            print(f"Expected Value choosing B: {metrics['expected_value_b']:.4f}")
+            print(f"Expected Value choosing A: {metrics['expected_value_a']:.4f}")
+
+        elif choice == "6":
+            visitors_a = int(input("Enter visitors in Group A: "))
+            conversions_a = int(input("Enter conversions in Group A: "))
+            visitors_b = int(input("Enter visitors in Group B: "))
+            conversions_b = int(input("Enter conversions in Group B: "))
+            value_per_conversion = float(input("Enter value per conversion ($): "))
+
+            decision = bayesian_decision_analysis(
+                visitors_a, conversions_a,
+                visitors_b, conversions_b,
+                value_per_conversion=value_per_conversion
+            )
+            print("\nBayesian Decision Analysis")
+            print(f"Expected Utility: ${decision['expected_utility']:.2f}")
+            print(f"Expected Regret: ${decision['expected_regret']:.2f}")
+
+        elif choice == "7":
+            visitors_a = int(input("Enter visitors in Group A: "))
+            conversions_a = int(input("Enter conversions in Group A: "))
+            visitors_b = int(input("Enter visitors in Group B: "))
+            conversions_b = int(input("Enter conversions in Group B: "))
+
+            monitoring = sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b)
+            print("\nSequential Bayesian Monitoring")
+            print(f"Posterior Mean A: {monitoring['posterior_mean_a']:.4f}")
+            print(f"Posterior Mean B: {monitoring['posterior_mean_b']:.4f}")
+            print(f"Probability B > A: {monitoring['prob_b_better']:.2%}")
+
+        elif choice == "0":
+            print("Exit")
+            break
+        else:
+            print("Invalid choice, try again.")
+
 if __name__ == "__main__":
-    print("Sample Size Calculator")
-    baseline = float(input("Enter baseline conversion rate (e.g. 0.1 for 10%): "))
-    mde = float(input("Enter minimum detectable effect (e.g. 0.02 for +2%): "))
-    alpha = float(input("Enter significance level (default 0.05): ") or 0.05)
-    power = float(input("Enter statistical power (default 0.8): ") or 0.8)
-
-    needed_n = sample_size(baseline, mde, alpha, power)
-    print(f"\nYou need at least {needed_n} visitors per group for the test.\n")
-
-    print("A/B test calculator")
-    visitors_a = int(input("Enter the visitors in Group A: "))
-    conversions_a = int(input("Enter the conversions in Group A: "))
-    visitors_b = int(input("Enter the visitors in Group B: "))
-    conversions_b = int(input("Enter the conversions in Group B: "))
-    revenue_per_conversion = float(input("Enter revenue per conversion (default 1): ") or 1)
-
-    try:
-        result = ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
-    except ValueError as e:
-        print(f"Error: {e}")
-        exit(1)
-
-    result = ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
-
-    print("\n Results")
-    print(f"Conversion Rate A: {result['cr_a']:.2%}")
-    print(f"Conversion Rate B: {result['cr_b']:.2%}")
-    print(f"Difference: {result['diff']:.2%}")
-    print(f"95% CI for difference: [{result['ci_lower']:.2%}, {result['ci_upper']:.2%}]")
-    print(f"p-value: {result['p_value']:.4f}")
-    print("Statistically Significant?", "Yes" if result['significant'] else "No")
-    print(f"Relative Uplift: {result['relative_uplift']:.2%}")
-    print(f"Expected Loss: {result['expected_loss']:.4f}")
-    print(f"Expected Value (revenue impact): ${result['expected_value']:.2f}")
-
-    prob_b_better = bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
-    print("\n Bayesian Results")
-    print(f"Probability that B is better than A: {prob_b_better:.2%}")
-
-    plot_confidence_interval(result['diff'], result['ci_lower'], result['ci_upper'])
-
-    value_per_conversion = float(input("\nEnter value per conversion in $ (default 100): ") or 100)
-    loss_b, expected_value, a_dist, b_dist = bayesian_expected_metrics(
-        visitors_a, conversions_a, visitors_b, conversions_b, value_per_conversion=value_per_conversion
-    )
-
-    print("\n Bayesian Risk & Value")
-    print(f"Expected Loss if choosing B: ${loss_b:.2f}")
-    print(f"Expected Value if choosing B: ${expected_value:.2f}")
-
-    plot_expected_metrics(a_dist, b_dist, loss_b, expected_value)
-
-    print("\n Sequential Bayesian Monitoring")
-    decision, prob = sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b)
-    print(f"Probability that B is better: {prob:.2%}")
-    print("Decision:", decision)
-
-    decision = bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversions_b, value_per_conversion=value_per_conversion)
-
-    print("\n Bayesian Decision Analysis")
-    print(f"Probability B > A: {decision['prob_b_better']:.2%}")
-    print(f"Expected Value choosing B: ${decision['expected_value']:.2f}")
-    print(f"Expected Regret choosing B: ${decision['expected_regret']:.2f}")
-    print(f"Expected Utility: ${decision['expected_utility']:.2f}")
+    main()

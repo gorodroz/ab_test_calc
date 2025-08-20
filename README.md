@@ -30,7 +30,7 @@ A simple Python tool for conducting A/B tests. Supports both the classical (freq
 
 ✧ Automatic input checks (incorrect values are not accepted
 
-## Installation
+## ❒ Installation
 
 ```
 git clone https://github.com/username/ab-test-calculator.git
@@ -39,7 +39,7 @@ python -m venv .venv
 source .venv/bin/activate   # або .venv\Scripts\activate для Windows
 pip install -r requirements.txt
 ```
-## Usage
+## ❒ Usage
 
 #### 1.Sample Size Calculator
 `python main.py`
@@ -81,6 +81,49 @@ Bayesian A/B Test
 Probability that B > A: 96.4%
 Graph saved as bayesian_ab.png
 ```
-## License
+
+## ❒ Roadmap
+### ✧  Stage 1. Basic calculator
+- [x] Sample size calculation
+- [x] Classic A/B test (z-score, p-value, CI)
+- [x] Bayesian A/B test (posterior, prob B > A)
+- [x] Confidence interval graph
+
+### ✧  Stage 2. User convenience
+- [x] CLI menu with mode selection (Sample size / Classic AB / Bayesian AB / Advanced metrics)
+- [ ] Output of results in tabular form (rich or tabulate)
+- [ ] Saving results in .csv / .json
+- [ ] Logging test runs to a file
+
+### ✧  Stage 3. New metrics
+- [x] Relative Uplift
+- [x] Expected Loss & Expected Value in $
+- [ ] ROI / Payback period
+- [ ] Support for various KPIs: not only conversions, but also ARPU, LTV, Churn
+
+### ✧  Stage 4. Multi-variant experiments
+- [ ] A/B/n tests (more than 2 options)
+- [ ] Correction for multiple comparisons (Bonferroni, Holm-Bonferroni)
+- [ ] Choosing ‘leaders’ from among 3+ options
+
+### ✧  Stage 5. Statistical extensions
+- [ ] Sequential testing
+- [ ] Monte Carlo simulations
+- [ ] Bayesian credible intervals + Expected Utility
+- [ ] Decision-theoretic approach
+
+### ✧  Stage 6. Economic and mathematical modelling
+- [ ] Markov chains
+- [ ] Linear optimisation
+- [ ] Scenario analysis
+- [ ] Cost-benefit simulation
+
+### ✧  Stage 7. Visualisation and reports
+- [ ] Best graphs (cumulative results over time)
+- [ ] Scatter Expected Value vs Expected Regret
+- [ ] Heatmap of probabilities (for different mde/alpha)
+- [ ] Automatic PDF report with graphs + conclusions
+
+## ❒ License
 
 MIT License
