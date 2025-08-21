@@ -91,9 +91,9 @@ Graph saved as bayesian_ab.png
 
 ### ✧  Stage 2. User convenience
 - [x] CLI menu with mode selection (Sample size / Classic AB / Bayesian AB / Advanced metrics)
-- [ ] Output of results in tabular form (rich or tabulate)
-- [ ] Saving results in .csv / .json
-- [ ] Logging test runs to a file
+- [x] Output of results in tabular form (rich or tabulate)
+- [x] Saving results in .csv / .json
+- [x] Logging test runs to a file
 
 ### ✧  Stage 3. New metrics
 - [x] Relative Uplift

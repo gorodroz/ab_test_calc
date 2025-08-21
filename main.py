@@ -3,6 +3,18 @@ import numpy
 from scipy.stats import norm
 import matplotlib
 import matplotlib.pyplot as plt
+from tabulate import tabulate
+import json
+import csv
+import logging
+
+logging.basicConfig(
+    filename="ab_test_calc_log.txt",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    encoding="utf-8"
+)
+
 matplotlib.use('Agg')
 
 def sample_size(p, mde, alpha=0.05, power=0.8):
@@ -73,6 +85,7 @@ def ab_test(visitors_a, conversions_a, visitors_b, conversions_b, alpha=0.05, re
         "expected_loss":expected_loss,
         "expected_value":expected_value
     }
+
 
 def bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b, samples=100_000):
     a_alpha, a_beta = 1+conversions_a, 1+(visitors_a-conversions_a)
@@ -210,89 +223,170 @@ def main():
         choice = input("Choose an option: ")
 
         if choice == "1":
-            baseline = float(input("Enter baseline conversion rate (e.g. 0.1 for 10%): "))
-            mde = float(input("Enter minimum detectable effect (e.g. 0.02 for +2%): "))
-            alpha = float(input("Enter significance level (default 0.05): ") or 0.05)
-            power = float(input("Enter statistical power (default 0.8): ") or 0.8)
-            needed_n = sample_size(baseline, mde, alpha, power)
+            baseline=float(input("Enter baseline conversion rate (e.g. 0.1 for 10%): "))
+            mde=float(input("Enter minimum detectable effect (e.g. 0.02 for +2%): "))
+            alpha=float(input("Enter significance level (default 0.05): ") or 0.05)
+            power=float(input("Enter statistical power (default 0.8): ") or 0.8)
+            needed_n=sample_size(baseline, mde, alpha, power)
             print(f"You need at least {needed_n} visitors per group.")
 
-        elif choice == "2":
-            visitors_a = int(input("Enter visitors in Group A: "))
-            conversions_a = int(input("Enter conversions in Group A: "))
-            visitors_b = int(input("Enter visitors in Group B: "))
-            conversions_b = int(input("Enter conversions in Group B: "))
+            logging.info(
+                f"Sample size calculation | baseline={baseline}, mde={mde}, alpha={alpha}, power={power} -> needed_n={needed_n}"
+            )
 
-            result = ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+
+        elif choice == "2":
+            visitors_a=int(input("Enter visitors in Group A: "))
+            conversions_a=int(input("Enter conversions in Group A: "))
+            visitors_b=int(input("Enter visitors in Group B: "))
+            conversions_b=int(input("Enter conversions in Group B: "))
+            result=ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+            table=[
+                ["Metric", "Value"],
+                ["Conversion Rate A", f"{result['cr_a']:.2%}"],
+                ["Conversion Rate B", f"{result['cr_b']:.2%}"],
+                ["Difference", f"{result['diff']:.2%}"],
+                ["95% CI Lower", f"{result['ci_lower']:.2%}"],
+                ["95% CI Upper", f"{result['ci_upper']:.2%}"],
+                ["p-value", f"{result['p_value']:.4f}"],
+                ["Significant?", "Yes" if result['significant'] else "No"],
+                ["Relative Uplift", f"{result['relative_uplift']:.2%}"],
+                ["Expected Loss", f"{result['expected_loss']:.4f}"],
+                ["Expected Value", f"${result['expected_value']:.2f}"]
+            ]
+
             print("\nClassic A/B Test Results")
-            print(f"Conversion Rate A: {result['cr_a']:.2%}")
-            print(f"Conversion Rate B: {result['cr_b']:.2%}")
-            print(f"Difference: {result['diff']:.2%}")
-            print(f"95% CI: [{result['ci_lower']:.2%}, {result['ci_upper']:.2%}]")
-            print(f"p-value: {result['p_value']:.4f}")
-            print("Significant?", "Yes" if result['significant'] else "No")
+            print(tabulate(table, headers="firstrow", tablefmt="grid"))
+
             plot_confidence_interval(result['diff'], result['ci_lower'], result['ci_upper'])
 
-        elif choice == "3":
-            visitors_a = int(input("Enter visitors in Group A: "))
-            conversions_a = int(input("Enter conversions in Group A: "))
-            visitors_b = int(input("Enter visitors in Group B: "))
-            conversions_b = int(input("Enter conversions in Group B: "))
+            save = input("Save results? (csv/json/skip): ").strip().lower()
+            if save in ["csv", "json"]:
+                from csvjsonm import save_results
+                save_results(result, "ab_test_results", save)
 
-            prob_b_better = bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+            logging.info(
+                f"Classic A/B Test | A: {visitors_a} visitors, {conversions_a} conversions "
+                f"| B: {visitors_b} visitors, {conversions_b} conversions "
+                f"| Results: CR_A={result['cr_a']:.4f}, CR_B={result['cr_b']:.4f}, "
+                f"diff={result['diff']:.4f}, p={result['p_value']:.4f}, sig={result['significant']}"
+            )
+
+        elif choice == "3":
+            visitors_a=int(input("Enter visitors in Group A: "))
+            conversions_a=int(input("Enter conversions in Group A: "))
+            visitors_b=int(input("Enter visitors in Group B: "))
+            conversions_b=int(input("Enter conversions in Group B: "))
+
+            prob_b_better=bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
             print(f"\nBayesian Result: Probability B > A = {prob_b_better:.2%}")
 
-        elif choice == "4":
-            visitors_a = int(input("Enter visitors in Group A: "))
-            conversions_a = int(input("Enter conversions in Group A: "))
-            visitors_b = int(input("Enter visitors in Group B: "))
-            conversions_b = int(input("Enter conversions in Group B: "))
+            logging.info(
+                f"Bayesian A/B Test | A: {visitors_a}/{conversions_a}, B: {visitors_b}/{conversions_b} "
+                f"| Probability B>A = {prob_b_better:.4f}"
+            )
 
-            result = ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
-            rel_uplift = (result['cr_b'] - result['cr_a']) / result['cr_a']
+        elif choice == "4":
+            visitors_a=int(input("Enter visitors in Group A: "))
+            conversions_a=int(input("Enter conversions in Group A: "))
+            visitors_b=int(input("Enter visitors in Group B: "))
+            conversions_b=int(input("Enter conversions in Group B: "))
+
+            result=ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+            rel_uplift=(result['cr_b']-result['cr_a'])/result['cr_a']
             print("\nAdvanced Metrics")
             print(f"Relative Uplift: {rel_uplift:.2%}")
 
-        elif choice == "5":
-            visitors_a = int(input("Enter visitors in Group A: "))
-            conversions_a = int(input("Enter conversions in Group A: "))
-            visitors_b = int(input("Enter visitors in Group B: "))
-            conversions_b = int(input("Enter conversions in Group B: "))
+            logging.info(
+                f"Advanced Metrics | A: {visitors_a}/{conversions_a}, "
+                f"B: {visitors_b}/{conversions_b} | Relative Uplift={rel_uplift:.4f}"
+            )
 
-            metrics = bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b)
-            print("\nBayesian Expected Metrics")
-            print(f"Expected Loss choosing B: {metrics['expected_loss_b']:.4f}")
-            print(f"Expected Loss choosing A: {metrics['expected_loss_a']:.4f}")
-            print(f"Expected Value choosing B: {metrics['expected_value_b']:.4f}")
-            print(f"Expected Value choosing A: {metrics['expected_value_a']:.4f}")
+        elif choice == "5":
+            visitors_a=int(input("Enter visitors in Group A: "))
+            conversions_a=int(input("Enter conversions in Group A: "))
+            visitors_b=int(input("Enter visitors in Group B: "))
+            conversions_b=int(input("Enter conversions in Group B: "))
+
+            metrics=bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b)
+
+            table = [
+                ["Metric", "Group A", "Group B", "Note"],
+                ["Expected Loss", f"{metrics['expected_loss_a']:.2f}", f"{metrics['expected_loss_b']:.2f}", ""],
+                ["Expected Value ($)", f"{metrics['expected_value_a']:.2f}", f"{metrics['expected_value_b']:.2f}", ""]
+            ]
+
+            print("\nBayesian Expected Metrics (Table)")
+            print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
+
+            save = input("Save results? (csv/json/skip): ").strip().lower()
+            if save in ["csv", "json"]:
+                from csvjsonm import save_results
+                save_results(result, "bayesian_expected_metrics", save)
+
+            logging.info(
+                f"Bayesian Expected Metrics | A: {visitors_a}/{conversions_a}, "
+                f"B: {visitors_b}/{conversions_b} | "
+                f"Expected Loss A={metrics['expected_loss_a']:.4f}, "
+                f"Expected Loss B={metrics['expected_loss_b']:.4f}, "
+                f"Expected Value A={metrics['expected_value_a']:.2f}, "
+                f"Expected Value B={metrics['expected_value_b']:.2f}"
+            )
 
         elif choice == "6":
-            visitors_a = int(input("Enter visitors in Group A: "))
-            conversions_a = int(input("Enter conversions in Group A: "))
-            visitors_b = int(input("Enter visitors in Group B: "))
-            conversions_b = int(input("Enter conversions in Group B: "))
-            value_per_conversion = float(input("Enter value per conversion ($): "))
+            visitors_a=int(input("Enter visitors in Group A: "))
+            conversions_a=int(input("Enter conversions in Group A: "))
+            visitors_b=int(input("Enter visitors in Group B: "))
+            conversions_b=int(input("Enter conversions in Group B: "))
+            value_per_conversion=float(input("Enter value per conversion ($): "))
 
-            decision = bayesian_decision_analysis(
-                visitors_a, conversions_a,
-                visitors_b, conversions_b,
-                value_per_conversion=value_per_conversion
+            decision=bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversions_b, value_per_conversion=value_per_conversion)
+
+            table = [
+                ["Metric", "Value"],
+                ["Probability B > A", f"{decision['prob_b_better']:.2%}"],
+                ["Expected Value ($)", f"{decision['expected_value']:.2f}"],
+                ["Expected Regret ($)", f"{decision['expected_regret']:.2f}"],
+                ["Expected Utility ($)", f"{decision['expected_utility']:.2f}"]
+            ]
+
+            print("\nBayesian Decision Analysis (Table)")
+            print(tabulate(table, headers="firstrow", tablefmt="grid"))
+
+            save = input("Save results? (csv/json/skip): ").strip().lower()
+            if save in ["csv", "json"]:
+                from csvjsonm import save_results
+                save_results(result, "bayesian_decision_analysis", save)
+
+            logging.info(
+                f"Bayesian Decision Analysis | A: {visitors_a}/{conversions_a}, "
+                f"B: {visitors_b}/{conversions_b}, Value per conversion={value_per_conversion} | "
+                f"P(B>A)={decision['prob_b_better']:.4f}, "
+                f"Expected Value={decision['expected_value']:.2f}, "
+                f"Expected Regret={decision['expected_regret']:.2f}, "
+                f"Expected Utility={decision['expected_utility']:.2f}"
             )
-            print("\nBayesian Decision Analysis")
-            print(f"Expected Utility: ${decision['expected_utility']:.2f}")
-            print(f"Expected Regret: ${decision['expected_regret']:.2f}")
 
         elif choice == "7":
-            visitors_a = int(input("Enter visitors in Group A: "))
-            conversions_a = int(input("Enter conversions in Group A: "))
-            visitors_b = int(input("Enter visitors in Group B: "))
-            conversions_b = int(input("Enter conversions in Group B: "))
+            visitors_a=int(input("Enter visitors in Group A: "))
+            conversions_a=int(input("Enter conversions in Group A: "))
+            visitors_b=int(input("Enter visitors in Group B: "))
+            conversions_b=int(input("Enter conversions in Group B: "))
 
-            monitoring = sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b)
+            monitoring=sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b)
             print("\nSequential Bayesian Monitoring")
             print(f"Posterior Mean A: {monitoring['posterior_mean_a']:.4f}")
             print(f"Posterior Mean B: {monitoring['posterior_mean_b']:.4f}")
             print(f"Probability B > A: {monitoring['prob_b_better']:.2%}")
+
+            logging.info(
+                f"Sequential Bayesian Monitoring | A: {visitors_a}/{conversions_a}, "
+                f"B: {visitors_b}/{conversions_b} | "
+                f"Posterior Mean A={monitoring['posterior_mean_a']:.4f}, "
+                f"Posterior Mean B={monitoring['posterior_mean_b']:.4f}, "
+                f"P(B>A)={monitoring['prob_b_better']:.4f}"
+            )
+
 
         elif choice == "0":
             print("Exit")

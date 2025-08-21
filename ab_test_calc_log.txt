@@ -1,0 +1,1 @@
+2025-08-21 13:16:48,689 - INFO - Sample size calculation | baseline=0.1, mde=0.02, alpha=0.05, power=0.8 -> needed_n=3532
