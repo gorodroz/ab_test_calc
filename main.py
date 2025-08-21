@@ -320,6 +320,11 @@ def main():
             print("\nAdvanced Metrics (with ROI & Payback)")
             print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
 
+            save = input("Save results? (csv/json/skip): ").strip().lower()
+            if save in ["csv", "json"]:
+                from csvjsonm import save_results
+                save_results(result, "advanced_metrics", save)
+
             logging.info(
                 f"Advanced Metrics | A: ROI={roi_a:.4f}, Payback={payback_a:.4f} | "
                 f"B: ROI={roi_b:.4f}, Payback={payback_b:.4f}"
@@ -330,16 +335,27 @@ def main():
             conversions_a=int(input("Enter conversions in Group A: "))
             visitors_b=int(input("Enter visitors in Group B: "))
             conversions_b=int(input("Enter conversions in Group B: "))
+            value_per_conversion=float(input("Enter value per conversion ($): "))
+            cost_a=float(input("Enter total cost for Group A ($): "))
+            cost_b=float(input("Enter total cost for Group B ($): "))
 
             metrics=bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b)
 
+            roi_a=(metrics['expected_value_a']-cost_a)/cost_a if cost_a>0 else 0
+            roi_b=(metrics['expected_value_b']-cost_b)/cost_b if cost_b>0 else 0
+
+            payback_a=cost_a/metrics['expected_value_a'] if metrics['expected_value_a']>0 else float("inf")
+            payback_b=cost_b/metrics['expected_value_b'] if metrics['expected_value_b']>0 else float("inf")
+
             table = [
-                ["Metric", "Group A", "Group B", "Note"],
-                ["Expected Loss", f"{metrics['expected_loss_a']:.2f}", f"{metrics['expected_loss_b']:.2f}", ""],
-                ["Expected Value ($)", f"{metrics['expected_value_a']:.2f}", f"{metrics['expected_value_b']:.2f}", ""]
+                ["Metric", "Group A", "Group B"],
+                ["Expected Loss", f"{metrics['expected_loss_a']:.2f}", f"{metrics['expected_loss_b']:.2f}"],
+                ["Expected Value ($)", f"{metrics['expected_value_a']:.2f}", f"{metrics['expected_value_b']:.2f}"],
+                ["ROI", f"{roi_a:.2%}", f"{roi_b:.2%}"],
+                ["Payback Period", f"{payback_a:.2f}", f"{payback_b:.2f}"],
             ]
 
-            print("\nBayesian Expected Metrics (Table)")
+            print("\nBayesian Expected Metrics (with ROI & Payback)")
             print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
 
             save = input("Save results? (csv/json/skip): ").strip().lower()
@@ -348,12 +364,8 @@ def main():
                 save_results(result, "bayesian_expected_metrics", save)
 
             logging.info(
-                f"Bayesian Expected Metrics | A: {visitors_a}/{conversions_a}, "
-                f"B: {visitors_b}/{conversions_b} | "
-                f"Expected Loss A={metrics['expected_loss_a']:.4f}, "
-                f"Expected Loss B={metrics['expected_loss_b']:.4f}, "
-                f"Expected Value A={metrics['expected_value_a']:.2f}, "
-                f"Expected Value B={metrics['expected_value_b']:.2f}"
+                f"Bayesian Expected Metrics | A: ROI={roi_a:.4f}, Payback={payback_a:.4f} | "
+                f"B: ROI={roi_b:.4f}, Payback={payback_b:.4f}"
             )
 
         elif choice == "6":
@@ -362,18 +374,24 @@ def main():
             visitors_b=int(input("Enter visitors in Group B: "))
             conversions_b=int(input("Enter conversions in Group B: "))
             value_per_conversion=float(input("Enter value per conversion ($): "))
+            cost_b=float(input("Enter total cost for Group B ($): "))
 
             decision=bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversions_b, value_per_conversion=value_per_conversion)
+
+            roi_b=(decision['expected_value']-cost_b)/cost_b if cost_b>0 else 0
+            payback_b=cost_b/decision['expected_value'] if decision['expected_value']>0 else float("inf")
 
             table = [
                 ["Metric", "Value"],
                 ["Probability B > A", f"{decision['prob_b_better']:.2%}"],
                 ["Expected Value ($)", f"{decision['expected_value']:.2f}"],
                 ["Expected Regret ($)", f"{decision['expected_regret']:.2f}"],
-                ["Expected Utility ($)", f"{decision['expected_utility']:.2f}"]
+                ["Expected Utility ($)", f"{decision['expected_utility']:.2f}"],
+                ["ROI (B)", f"{roi_b:.2%}"],
+                ["Payback (B)", f"{payback_b:.2f}"],
             ]
 
-            print("\nBayesian Decision Analysis (Table)")
+            print("\nBayesian Decision Analysis (with ROI & Payback)")
             print(tabulate(table, headers="firstrow", tablefmt="grid"))
 
             save = input("Save results? (csv/json/skip): ").strip().lower()
@@ -381,34 +399,40 @@ def main():
                 from csvjsonm import save_results
                 save_results(result, "bayesian_decision_analysis", save)
 
-            logging.info(
-                f"Bayesian Decision Analysis | A: {visitors_a}/{conversions_a}, "
-                f"B: {visitors_b}/{conversions_b}, Value per conversion={value_per_conversion} | "
-                f"P(B>A)={decision['prob_b_better']:.4f}, "
-                f"Expected Value={decision['expected_value']:.2f}, "
-                f"Expected Regret={decision['expected_regret']:.2f}, "
-                f"Expected Utility={decision['expected_utility']:.2f}"
-            )
+            logging.info(f"Bayesian Decision Analysis | ROI(B)={roi_b:.4f}, Payback(B)={payback_b:.4f}")
 
         elif choice == "7":
             visitors_a=int(input("Enter visitors in Group A: "))
             conversions_a=int(input("Enter conversions in Group A: "))
             visitors_b=int(input("Enter visitors in Group B: "))
             conversions_b=int(input("Enter conversions in Group B: "))
+            value_per_conversion=float(input("Enter value per conversion ($): "))
+            cost_a=float(input("Enter total cost for Group A ($): "))
+            cost_b=float(input("Enter total cost for Group B ($): "))
 
             monitoring=sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b)
-            print("\nSequential Bayesian Monitoring")
+
+            revenue_a=conversions_a*value_per_conversion
+            revenue_b=conversions_b*value_per_conversion
+
+            roi_a=(revenue_a-cost_a)/cost_a if cost_a>0 else 0
+            roi_b=(revenue_b-cost_b)/cost_b if cost_b>0 else 0
+
+            payback_a=cost_a/revenue_a if revenue_a>0 else float("inf")
+            payback_b=cost_b/revenue_b if revenue_b>0 else float("inf")
+
+            print("\nSequential Bayesian Monitoring (with ROI & Payback)")
             print(f"Posterior Mean A: {monitoring['posterior_mean_a']:.4f}")
             print(f"Posterior Mean B: {monitoring['posterior_mean_b']:.4f}")
             print(f"Probability B > A: {monitoring['prob_b_better']:.2%}")
+            print(f"ROI A: {roi_a:.2%}, ROI B: {roi_b:.2%}")
+            print(f"Payback A: {payback_a:.2f}, Payback B: {payback_b:.2f}")
 
             logging.info(
-                f"Sequential Bayesian Monitoring | A: {visitors_a}/{conversions_a}, "
-                f"B: {visitors_b}/{conversions_b} | "
-                f"Posterior Mean A={monitoring['posterior_mean_a']:.4f}, "
-                f"Posterior Mean B={monitoring['posterior_mean_b']:.4f}, "
-                f"P(B>A)={monitoring['prob_b_better']:.4f}"
+                f"Sequential Monitoring | ROI(A)={roi_a:.4f}, Payback(A)={payback_a:.4f} | "
+                f"ROI(B)={roi_b:.4f}, Payback(B)={payback_b:.4f}"
             )
+
         elif choice == "0":
             print("Exit")
             break
