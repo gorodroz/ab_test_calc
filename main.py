@@ -291,15 +291,38 @@ def main():
             conversions_a=int(input("Enter conversions in Group A: "))
             visitors_b=int(input("Enter visitors in Group B: "))
             conversions_b=int(input("Enter conversions in Group B: "))
+            value_per_conversion=float(input("Enter value per conversion ($): "))
+            cost_a=float(input("Enter total cost for Group A ($): "))
+            cost_b=float(input("Enter total cost for Group B ($): "))
 
             result=ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+
+            revenue_a=conversions_a*value_per_conversion
+            revenue_b=conversions_b*value_per_conversion
+
+            roi_a=(revenue_a - cost_a)/cost_a if cost_a>0 else 0
+            roi_b=(revenue_b - cost_b) / cost_b if cost_b > 0 else 0
+
+            payback_a=cost_a/revenue_a if revenue_a > 0 else float("inf")
+            payback_b=cost_b/revenue_b if revenue_b > 0 else float("inf")
+
             rel_uplift=(result['cr_b']-result['cr_a'])/result['cr_a']
-            print("\nAdvanced Metrics")
-            print(f"Relative Uplift: {rel_uplift:.2%}")
+
+            table = [
+                ["Metric", "Group A", "Group B"],
+                ["Conversion Rate", f"{result['cr_a']:.2%}", f"{result['cr_b']:.2%}"],
+                ["Revenue ($)", f"{revenue_a:.2f}", f"{revenue_b:.2f}"],
+                ["ROI", f"{roi_a:.2%}", f"{roi_b:.2%}"],
+                ["Payback Period", f"{payback_a:.2f}", f"{payback_b:.2f}"],
+                ["Relative Uplift", f"{rel_uplift:.2%}", ""]
+            ]
+
+            print("\nAdvanced Metrics (with ROI & Payback)")
+            print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
 
             logging.info(
-                f"Advanced Metrics | A: {visitors_a}/{conversions_a}, "
-                f"B: {visitors_b}/{conversions_b} | Relative Uplift={rel_uplift:.4f}"
+                f"Advanced Metrics | A: ROI={roi_a:.4f}, Payback={payback_a:.4f} | "
+                f"B: ROI={roi_b:.4f}, Payback={payback_b:.4f}"
             )
 
         elif choice == "5":
@@ -386,8 +409,6 @@ def main():
                 f"Posterior Mean B={monitoring['posterior_mean_b']:.4f}, "
                 f"P(B>A)={monitoring['prob_b_better']:.4f}"
             )
-
-
         elif choice == "0":
             print("Exit")
             break

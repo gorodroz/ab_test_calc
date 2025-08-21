@@ -98,7 +98,7 @@ Graph saved as bayesian_ab.png
 ### ✧  Stage 3. New metrics
 - [x] Relative Uplift
 - [x] Expected Loss & Expected Value in $
-- [ ] ROI / Payback period
+- [x] ROI / Payback period
 - [ ] Support for various KPIs: not only conversions, but also ARPU, LTV, Churn
 
 ### ✧  Stage 4. Multi-variant experiments
