@@ -17,6 +17,8 @@ logging.basicConfig(
 
 matplotlib.use('Agg')
 
+#Core Functions
+
 def sample_size(p, mde, alpha=0.05, power=0.8):
     if not (0<p<1):
         raise ValueError("Baseline conversion rate (p) must be between 0 and 1 (exclusive).")
@@ -37,6 +39,7 @@ def sample_size(p, mde, alpha=0.05, power=0.8):
 
 
 def ab_test(visitors_a, conversions_a, visitors_b, conversions_b, alpha=0.05, revenue_per_conversion=1.0):
+    #binominal A/B test for CR/Churn
     if visitors_a <= 0 or visitors_b <= 0:
         raise ValueError("Visitors must be greater than zero")
     if conversions_a <0 or conversions_b < 0:
@@ -47,14 +50,13 @@ def ab_test(visitors_a, conversions_a, visitors_b, conversions_b, alpha=0.05, re
     cr_a=conversions_a/visitors_a
     cr_b=conversions_b/visitors_b
 
-    se_a=math.sqrt(cr_a * (1 - cr_a) / visitors_a)
-    se_b=math.sqrt(cr_b * (1 - cr_b) / visitors_b)
+    se_a=math.sqrt(cr_a*(1-cr_a)/visitors_a)
+    se_b=math.sqrt(cr_b*(1-cr_b)/visitors_b)
 
     se_diff=math.sqrt(se_a**2 + se_b**2)
-    z_score=(cr_b -cr_a)/se_diff
+    z_score=(cr_b -cr_a)/se_diff if se_diff>0 else 0.0
 
     p_value=2*(1-norm.cdf(abs(z_score)))
-
     significant=p_value < alpha
 
     z_crit=norm.ppf(1-alpha/2)
@@ -69,25 +71,60 @@ def ab_test(visitors_a, conversions_a, visitors_b, conversions_b, alpha=0.05, re
     sims=100_000
     a_samples=numpy.random.beta(conversions_a+1, visitors_a-conversions_a+1, sims)
     b_samples=numpy.random.beta(conversions_b+1, visitors_b-conversions_b+1, sims)
-    expected_loss=numpy.mean((a_samples-b_samples)[b_samples>a_samples])
+    expected_loss=float(numpy.mean((a_samples-b_samples)[b_samples>a_samples]))
 
     expected_value=(cr_b-cr_a)*visitors_b*revenue_per_conversion
 
     return {
-        "cr_a": cr_a,
-        "cr_b": cr_b,
-        "diff": cr_b-cr_a,
-        "p_value": p_value,
-        "significant": significant,
-        "ci_lower": ci_lower,
-        "ci_upper": ci_upper,
-        "relative_uplift":relative_uplift,
-        "expected_loss":expected_loss,
-        "expected_value":expected_value
+        "cr_a": float(cr_a),
+        "cr_b": float(cr_b),
+        "diff": float(cr_b-cr_a),
+        "p_value": float(p_value),
+        "significant": bool(significant),
+        "ci_lower": float(ci_lower),
+        "ci_upper": float(ci_upper),
+        "relative_uplift":float(relative_uplift),
+        "expected_loss":float(expected_loss),
+        "expected_value":float(expected_value)
     }
 
+def ab_test_means(mean_a, sd_a, n_a, mean_b, sd_b, n_b, alpha=0.05):
+    #for ARPU/LTV (diference of means, normal approximation)
+    if n_a<=1 or n_b<=1:
+        raise ValueError("Sample size per group must be > 1 for means-based KPI.")
+    if sd_a <0 or sd_b<0:
+        raise ValueError("Standart deviation cannot be negative")
+    se_diff=math.sqrt((sd_a**2)/n_a+(sd_b**2)/n_b)
+    z_score=(mean_b-mean_a)/se_diff if se_diff >0 else 0.0
+    p_value=2*(1-norm.cdf(abs(z_score)))
+
+    z_crit=norm.ppf(1-alpha/2)
+    margin_error=z_crit*se_diff
+    ci_lower=(mean_b-mean_a)-margin_error
+    ci_upper=(mean_b-mean_a)+margin_error
+    significant=p_value<alpha
+
+    relative_uplift=(mean_b-mean_a)/mean_a if mean_a != 0 else float("inf")
+
+    #Expected value - incremental mean*size of B
+    expected_value=(mean_b-mean_a)*n_b
+
+    return{
+        "mean_a":float(mean_a),
+        "mean_b":float(mean_b),
+        "sd_a": float(sd_a),
+        "sd_b": float(sd_b),
+        "diff": float(mean_b-mean_a),
+        "p_value": float(p_value),
+        "significant":bool(significant),
+        "ci_lower":float(ci_lower),
+        "ci_upper": float(ci_upper),
+        "relative_uplift": float(relative_uplift),
+        "expected_value": float(expected_value)
+    }
 
 def bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b, samples=100_000):
+    #only for proportion KPIs
     a_alpha, a_beta = 1+conversions_a, 1+(visitors_a-conversions_a)
     b_alpha, b_beta = 1+conversions_b, 1+(visitors_b-conversions_b)
 
@@ -96,31 +133,31 @@ def bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b, sampl
 
     prob_b_better=(b_dist>a_dist).mean()
 
-    return prob_b_better
+    return float(prob_b_better)
 
 def bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b,samples=100_000, value_per_conversion=100):
+    #Only fpr proportion KPIs
     a_alpha, a_beta = 1 + conversions_a, 1 + (visitors_a - conversions_a)
     b_alpha, b_beta = 1 + conversions_b, 1 + (visitors_b - conversions_b)
 
     a_dist = numpy.random.beta(a_alpha, a_beta, samples)
     b_dist = numpy.random.beta(b_alpha, b_beta, samples)
 
-    loss_b = numpy.mean((a_dist - b_dist) * (a_dist > b_dist)) * value_per_conversion
-    loss_a = numpy.mean((b_dist - a_dist) * (b_dist > a_dist)) * value_per_conversion
+    loss_b = float(numpy.mean((a_dist - b_dist) * (a_dist > b_dist)) * value_per_conversion)
+    loss_a = float(numpy.mean((b_dist - a_dist) * (b_dist > a_dist)) * value_per_conversion)
 
-    expected_value_b = numpy.mean(b_dist - a_dist) * value_per_conversion
-    expected_value_a = numpy.mean(a_dist - b_dist) * value_per_conversion
+    expected_value_b = float(numpy.mean(b_dist - a_dist) * value_per_conversion)
+    expected_value_a = float(numpy.mean(a_dist - b_dist) * value_per_conversion)
 
     return {
-        "expected_loss_b": float(loss_b),
-        "expected_loss_a": float(loss_a),
-        "expected_value_b": float(expected_value_b),
-        "expected_value_a": float(expected_value_a),
-        "a_dist": a_dist,
-        "b_dist": b_dist,
+        "expected_loss_b": loss_b,
+        "expected_loss_a": loss_a,
+        "expected_value_b": expected_value_b,
+        "expected_value_a": expected_value_a
     }
 
 def bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversions_b,samples=100_000, value_per_conversion=100):
+    #only for proportion KPIs
     a_alpha, a_beta = 1 + conversions_a, 1 + (visitors_a - conversions_a)
     b_alpha, b_beta = 1 + conversions_b, 1 + (visitors_b - conversions_b)
 
@@ -128,17 +165,17 @@ def bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversion
     b_dist = numpy.random.beta(b_alpha, b_beta, samples)
 
     diff = b_dist - a_dist
-    prob_b_better = (diff > 0).mean()
+    prob_b_better = float((diff > 0).mean())
 
-    expected_value = numpy.mean(diff) * value_per_conversion * visitors_b
-    regret = numpy.mean((-diff) * (diff < 0)) * value_per_conversion * visitors_b
-    expected_utility = prob_b_better * expected_value - (1 - prob_b_better) * regret
+    expected_value = float(numpy.mean(diff) * value_per_conversion * visitors_b)
+    regret = float(numpy.mean((-diff) * (diff < 0)) * value_per_conversion * visitors_b)
+    expected_utility = float(prob_b_better * expected_value - (1 - prob_b_better) * regret)
 
     return {
-        "prob_b_better": float(prob_b_better),
-        "expected_value": float(expected_value),
-        "expected_regret": float(regret),
-        "expected_utility": float(expected_utility),
+        "prob_b_better": prob_b_better,
+        "expected_value": expected_value,
+        "expected_regret": regret,
+        "expected_utility": expected_utility
     }
 
 def sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b, samples=50_000, threshold_high=0.99, threshold_low=0.01):
@@ -155,9 +192,9 @@ def sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conver
     a_dist = numpy.random.beta(a_alpha, a_beta, samples)
     b_dist = numpy.random.beta(b_alpha, b_beta, samples)
 
-    prob_b_better = (b_dist > a_dist).mean()
-    posterior_mean_a = a_alpha / (a_alpha + a_beta)
-    posterior_mean_b = b_alpha / (b_alpha + b_beta)
+    prob_b_better = float((b_dist > a_dist).mean())
+    posterior_mean_a = float(a_alpha / (a_alpha + a_beta))
+    posterior_mean_b = float(b_alpha / (b_alpha + b_beta))
     #Decision making
     if prob_b_better > threshold_high:
         decision = "Stop: Variant B is clearly better"
@@ -168,9 +205,9 @@ def sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conver
 
     return {
         "decision": decision,
-        "prob_b_better": float(prob_b_better),
-        "posterior_mean_a": float(posterior_mean_a),
-        "posterior_mean_b": float(posterior_mean_b),
+        "prob_b_better": prob_b_better,
+        "posterior_mean_a": posterior_mean_a,
+        "posterior_mean_b": posterior_mean_b
     }
 
 def plot_expected_metrics(a_dist, b_dist, loss_b, expected_value):
@@ -196,31 +233,115 @@ def plot_expected_metrics(a_dist, b_dist, loss_b, expected_value):
     plt.savefig("bayesian_metrics.png")
     print("Graph saved as bayesian_metrics.png")
 
-def plot_confidence_interval(diff, ci_lower, ci_upper):
-    plt.figure(figsize=(5, 2))
-    plt.errorbar(x=diff, y=0, xerr=[[diff-ci_lower], [ci_upper-diff]], fmt="o", color="blue", ecolor="black",
-                 elinewidth=2, capsize=5)
-    plt.axvline(0, color="red", linestyle="--", label="No difference")
-    plt.title("95% Confidence Interval for Conversion Difference")
+def plot_confidence_interval(diff, ci_lower, ci_upper, title="95% Confidence Interval"):
+    plt.figure(figsize=(6, 2))
+    plt.errorbar(
+        x=diff,
+        y=0,
+        xerr=[[diff - ci_lower], [ci_upper - diff]],
+        fmt='o',
+        color='blue',
+        ecolor='red',
+        capsize=5
+    )
+    plt.axvline(0, color='black', linestyle='--')
+    plt.title(title)
+    plt.xlabel("Difference")
     plt.yticks([])
-    plt.legend()
-    plt.grid(True, axis="x", linestyle="--", alpha=0.6)
-    plt.tight_layout()
-    plt.savefig("ab_test_ci.png")
-    print("Graph saved as ab_test_ci.png")
+    plt.show()
 
+#KPI input
+
+def choose_kpi():
+    print("\nChoose KPI type:")
+    print("1. Conversion Rate(CR)")
+    print("2. ARPU")
+    print("3. LTV")
+    print("4. Churn")
+
+    k=input("Enter KPI (1/2/3/4): ").strip()
+    if k == "1":
+        return "cr"
+    elif k == "2":
+        return "arpu"
+    elif k == "3":
+        return "ltv"
+    elif k == "4":
+        return "churn"
+    else:
+        print("Invalid KPI, defaulting to Conversion Rate.")
+        return "cr"
+
+def get_inputs_for_kpi(kpi_type):
+    """
+    Returns a dict with standardized fields for later use.
+    For proportions (cr/churn): visitors_a, conversions_a, visitors_b, conversions_b
+    For means (arpu/ltv): users_a, total_a, sd_a(optional), users_b, total_b, sd_b(optional)
+    """
+    if kpi_type in ("cr", "churn"):
+        visitors_a = int(input("Enter users/visitors in Group A: "))
+        success_a = int(input("Enter conversions (CR) or lost users (Churn) in Group A: "))
+        visitors_b = int(input("Enter users/visitors in Group B: "))
+        success_b = int(input("Enter conversions (CR) or lost users (Churn) in Group B: "))
+        return{
+            "visitors_a": visitors_a,
+            "converisons_a": success_a,
+            "visitors_b": visitors_b,
+            "converisons_b": success_b
+        }
+    else:
+        users_a=int(input("Enter users in Group A: "))
+        total_a=float(input("Enter TOTAL value for KPI in Group A (e.g. total ravenue or total LTV): "))
+        users_b=int(input("Enter users in Group B: "))
+        total_b=float(input("Enter TOTAL value for KPI in Group B: "))
+        #Optinal SDs
+        sd_a_in = input("Enter sample SD per user for Group A (optional, press Enter to skip): ").strip()
+        sd_b_in = input("Enter sample SD per user for Group B (optional, press Enter to skip): ").strip()
+        sd_a=float(sd_a_in) if sd_a_in else None
+        sd_b = float(sd_b_in) if sd_b_in else None
+        return {
+            "users_a": users_a,
+            "total_a": total_a,
+            "sd_a": sd_a,
+            "users_b": users_b,
+            "total_b": total_b,
+            "sd_b": sd_b
+        }
+
+def infer_means_payload(kpi_inputs, kpi_type):
+    #Build mean/sd/n payload for ARPU/LTV based tests
+    n_a=kpi_inputs["users_a"]
+    n_b=kpi_inputs["users_b"]
+    mean_a=kpi_inputs["total_a"]/n_a if n_a >0 else 0.0
+    mean_b=kpi_inputs["total_b"]/n_b if n_b >0 else 0.0
+
+    sd_a=kpi_inputs["sd_a"]
+    sd_b=kpi_inputs["sd_b"]
+
+    warning=None
+    if sd_a is None:
+        sd_a=mean_a
+        warning="Sd for Group A not provided - assumed SD = mean"
+    if sd_b is None:
+        sd_b=mean_b
+        warning = ("SDs not provided — assumed SD≈mean for both groups."
+                   if warning is None else f"{warning} SD≈mean for Group B")
+
+    return mean_a, sd_a, n_a, mean_b, sd_b, n_b, warning
+
+#Main CLI
 def main():
     while True:
         print("\n=== A/B test calculator ===")
         print("1. Sample size calculator")
         print("2. Classic A/B test")
         print("3. Bayesian A/B test")
-        print("4. Advanced Metrics (Relative Uplift, Expected Loss/Value)")
+        print("4. Advanced Metrics (Relative Uplift, ROI, Payback)")
         print("5. Bayesian Expected Metrics (Loss & Value)")
         print("6. Bayesian Decision Analysis (Utility & Regret)")
         print("7. Sequential Bayesian Monitoring")
         print("0. Exit")
-        choice = input("Choose an option: ")
+        choice = input("Choose an option: ").strip()
 
         if choice == "1":
             baseline=float(input("Enter baseline conversion rate (e.g. 0.1 for 10%): "))
@@ -235,202 +356,282 @@ def main():
             )
 
 
+
         elif choice == "2":
-            visitors_a=int(input("Enter visitors in Group A: "))
-            conversions_a=int(input("Enter conversions in Group A: "))
-            visitors_b=int(input("Enter visitors in Group B: "))
-            conversions_b=int(input("Enter conversions in Group B: "))
-            result=ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
-            table=[
-                ["Metric", "Value"],
-                ["Conversion Rate A", f"{result['cr_a']:.2%}"],
-                ["Conversion Rate B", f"{result['cr_b']:.2%}"],
-                ["Difference", f"{result['diff']:.2%}"],
-                ["95% CI Lower", f"{result['ci_lower']:.2%}"],
-                ["95% CI Upper", f"{result['ci_upper']:.2%}"],
-                ["p-value", f"{result['p_value']:.4f}"],
-                ["Significant?", "Yes" if result['significant'] else "No"],
-                ["Relative Uplift", f"{result['relative_uplift']:.2%}"],
-                ["Expected Loss", f"{result['expected_loss']:.4f}"],
-                ["Expected Value", f"${result['expected_value']:.2f}"]
-            ]
+            kpi_type = choose_kpi()
+            if kpi_type in ("cr", "churn"):
+                data = get_inputs_for_kpi(kpi_type)
+                result = ab_test(
+                    data["visitors_a"], data["conversions_a"],
+                    data["visitors_b"], data["conversions_b"]
+                )
+                result["kpi_type"] = kpi_type
 
-            print("\nClassic A/B Test Results")
-            print(tabulate(table, headers="firstrow", tablefmt="grid"))
+                table = [
+                    ["Metric", "Value"],
+                    ["Rate A", f"{result['cr_a']:.2%}"],
+                    ["Rate B", f"{result['cr_b']:.2%}"],
+                    ["Difference", f"{result['diff']:.2%}"],
+                    ["95% CI Lower", f"{result['ci_lower']:.2%}"],
+                    ["95% CI Upper", f"{result['ci_upper']:.2%}"],
+                    ["p-value", f"{result['p_value']:.4f}"],
+                    ["Significant?", "Yes" if result['significant'] else "No"],
+                    ["Relative Uplift", f"{result['relative_uplift']:.2%}"],
+                    ["Expected Loss", f"{result['expected_loss']:.4f}"],
+                    ["Expected Value", f"{result['expected_value']:.2f}"]
+                ]
 
-            plot_confidence_interval(result['diff'], result['ci_lower'], result['ci_upper'])
+                print("\nClassic A/B Test Results")
+                print(tabulate(table, headers="firstrow", tablefmt="grid"))
+                plot_confidence_interval(result['diff'], result['ci_lower'], result['ci_upper'], title="95% CI for Rate Difference")
 
-            save = input("Save results? (csv/json/skip): ").strip().lower()
-            if save in ["csv", "json"]:
-                from csvjsonm import save_results
-                save_results(result, "ab_test_results", save)
+                save = input("Save results? (csv/json/skip): ").strip().lower()
+                if save in ["csv", "json"]:
+                    from csvjsonm import save_results
+                    save_results(result, "ab_test_results", save)
 
-            logging.info(
-                f"Classic A/B Test | A: {visitors_a} visitors, {conversions_a} conversions "
-                f"| B: {visitors_b} visitors, {conversions_b} conversions "
-                f"| Results: CR_A={result['cr_a']:.4f}, CR_B={result['cr_b']:.4f}, "
-                f"diff={result['diff']:.4f}, p={result['p_value']:.4f}, sig={result['significant']}"
-            )
+                logging.info(
+                    f"[{kpi_type}] Classic A/B | A: {data['visitors_a']}/{data['conversions_a']} "
+                    f"| B: {data['visitors_b']}/{data['conversions_b']} "
+                    f"| diff={result['diff']:.4f}, p={result['p_value']:.4f}, sig={result['significant']}"
+                )
 
+            else:
+                # Means-based KPI (ARPU/LTV)
+                data = get_inputs_for_kpi(kpi_type)
+                mean_a, sd_a, n_a, mean_b, sd_b, n_b, warn = infer_means_payload(data, kpi_type)
+                alpha = float(input("Enter significance level (default 0.05): ") or 0.05)
+                result = ab_test_means(mean_a, sd_a, n_a, mean_b, sd_b, n_b, alpha=alpha)
+                result["kpi_type"] = kpi_type
+
+                table = [
+                    ["Metric", "Value"],
+                    ["Mean A", f"{result['mean_a']:.4f}"],
+                    ["Mean B", f"{result['mean_b']:.4f}"],
+                    ["Difference", f"{result['diff']:.4f}"],
+                    ["95% CI Lower", f"{result['ci_lower']:.4f}"],
+                    ["95% CI Upper", f"{result['ci_upper']:.4f}"],
+                    ["p-value", f"{result['p_value']:.4f}"],
+                    ["Significant?", "Yes" if result['significant'] else "No"],
+                    ["Relative Uplift", f"{result['relative_uplift']:.2%}"],
+                    ["Expected Value (Δ×nB)", f"{result['expected_value']:.4f}"]
+                ]
+
+                print("\nClassic A/B Test (Means KPI) Results")
+                print(tabulate(table, headers="firstrow", tablefmt="grid"))
+                if warn:
+                    print(f"Note: {warn}")
+
+                plot_confidence_interval(result['diff'], result['ci_lower'], result['ci_upper'], title="95% CI for Mean Difference")
+
+                save = input("Save results? (csv/json/skip): ").strip().lower()
+                if save in ["csv", "json"]:
+                    from csvjsonm import save_results
+                    save_results(result, f"ab_test_results_{kpi_type}", save)
+
+                logging.info(
+                    f"[{kpi_type}] Classic A/B (means) | "
+                    f"A(n={n_a}, mean={mean_a:.4f}, sd={sd_a:.4f}) "
+                    f"| B(n={n_b}, mean={mean_b:.4f}, sd={sd_b:.4f}) "
+                    f"| diff={result['diff']:.4f}, p={result['p_value']:.4f}, sig={result['significant']}"
+                )
+
+#3.
         elif choice == "3":
-            visitors_a=int(input("Enter visitors in Group A: "))
-            conversions_a=int(input("Enter conversions in Group A: "))
-            visitors_b=int(input("Enter visitors in Group B: "))
-            conversions_b=int(input("Enter conversions in Group B: "))
+            kpi_type = choose_kpi()
+            if kpi_type not in ("cr", "churn"):
+                print(
+                    "Bayesian A/B currently supports only proportion KPIs (CR/Churn). Use option 2 or 4 for ARPU/LTV.")
+                continue
 
-            prob_b_better=bayesian_ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+            data = get_inputs_for_kpi(kpi_type)
+            prob_b_better = bayesian_ab_test(
+                data["visitors_a"], data["conversions_a"],
+                data["visitors_b"], data["conversions_b"]
+            )
             print(f"\nBayesian Result: Probability B > A = {prob_b_better:.2%}")
 
             logging.info(
-                f"Bayesian A/B Test | A: {visitors_a}/{conversions_a}, B: {visitors_b}/{conversions_b} "
-                f"| Probability B>A = {prob_b_better:.4f}"
+                f"[{kpi_type}] Bayesian A/B | A: {data['visitors_a']}/{data['conversions_a']}, "
+                f"B: {data['visitors_b']}/{data['conversions_b']} | P(B>A)={prob_b_better:.4f}"
             )
 
         elif choice == "4":
-            visitors_a=int(input("Enter visitors in Group A: "))
-            conversions_a=int(input("Enter conversions in Group A: "))
-            visitors_b=int(input("Enter visitors in Group B: "))
-            conversions_b=int(input("Enter conversions in Group B: "))
-            value_per_conversion=float(input("Enter value per conversion ($): "))
-            cost_a=float(input("Enter total cost for Group A ($): "))
-            cost_b=float(input("Enter total cost for Group B ($): "))
+            kpi_type = choose_kpi()
+            if kpi_type in ("cr", "churn"):
+                data = get_inputs_for_kpi(kpi_type)
+                value_per_conversion = float(input("Enter value per success/conversion ($): "))
+                cost_a = float(input("Enter total cost for Group A ($): "))
+                cost_b = float(input("Enter total cost for Group B ($): "))
 
-            result=ab_test(visitors_a, conversions_a, visitors_b, conversions_b)
+                result = ab_test(
+                    data["visitors_a"], data["conversions_a"],
+                    data["visitors_b"], data["conversions_b"],
+                    revenue_per_conversion=value_per_conversion
+                )
+                result["kpi_type"] = kpi_type
 
-            revenue_a=conversions_a*value_per_conversion
-            revenue_b=conversions_b*value_per_conversion
+                revenue_a = data["conversions_a"] * value_per_conversion
+                revenue_b = data["conversions_b"] * value_per_conversion
 
-            roi_a=(revenue_a - cost_a)/cost_a if cost_a>0 else 0
-            roi_b=(revenue_b - cost_b) / cost_b if cost_b > 0 else 0
+                roi_a = (revenue_a - cost_a) / cost_a if cost_a > 0 else 0.0
+                roi_b = (revenue_b - cost_b) / cost_b if cost_b > 0 else 0.0
 
-            payback_a=cost_a/revenue_a if revenue_a > 0 else float("inf")
-            payback_b=cost_b/revenue_b if revenue_b > 0 else float("inf")
+                payback_a = cost_a / revenue_a if revenue_a > 0 else float("inf")
+                payback_b = cost_b / revenue_b if revenue_b > 0 else float("inf")
 
-            rel_uplift=(result['cr_b']-result['cr_a'])/result['cr_a']
+                rel_uplift = (result['cr_b'] - result['cr_a']) / result['cr_a'] if result['cr_a'] > 0 else float("inf")
 
-            table = [
-                ["Metric", "Group A", "Group B"],
-                ["Conversion Rate", f"{result['cr_a']:.2%}", f"{result['cr_b']:.2%}"],
-                ["Revenue ($)", f"{revenue_a:.2f}", f"{revenue_b:.2f}"],
-                ["ROI", f"{roi_a:.2%}", f"{roi_b:.2%}"],
-                ["Payback Period", f"{payback_a:.2f}", f"{payback_b:.2f}"],
-                ["Relative Uplift", f"{rel_uplift:.2%}", ""]
-            ]
+                table = [
+                    ["Metric", "Group A", "Group B"],
+                    ["Rate", f"{result['cr_a']:.2%}", f"{result['cr_b']:.2%}"],
+                    ["Revenue ($)", f"{revenue_a:.2f}", f"{revenue_b:.2f}"],
+                    ["ROI", f"{roi_a:.2%}", f"{roi_b:.2%}"],
+                    ["Payback Period", f"{payback_a:.2f}", f"{payback_b:.2f}"],
+                    ["Relative Uplift", f"{rel_uplift:.2%}", ""]
+                ]
 
-            print("\nAdvanced Metrics (with ROI & Payback)")
-            print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
+                print("\nAdvanced Metrics (with ROI & Payback)")
+                print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
 
-            save = input("Save results? (csv/json/skip): ").strip().lower()
-            if save in ["csv", "json"]:
-                from csvjsonm import save_results
-                save_results(result, "advanced_metrics", save)
+                logging.info(
+                    f"[{kpi_type}] Advanced | ROI_A={roi_a:.4f}, Payback_A={payback_a:.4f} | "
+                    f"ROI_B={roi_b:.4f}, Payback_B={payback_b:.4f}"
+                )
 
-            logging.info(
-                f"Advanced Metrics | A: ROI={roi_a:.4f}, Payback={payback_a:.4f} | "
-                f"B: ROI={roi_b:.4f}, Payback={payback_b:.4f}"
-            )
+            else:
+                # ARPU / LTV advanced: ROI/Payback via means
+                data = get_inputs_for_kpi(kpi_type)
+                mean_a, sd_a, n_a, mean_b, sd_b, n_b, warn = infer_means_payload(data, kpi_type)
+                alpha = float(input("Enter significance level (default 0.05): ") or 0.05)
+                cost_a = float(input("Enter total cost for Group A ($): "))
+                cost_b = float(input("Enter total cost for Group B ($): "))
+
+                result = ab_test_means(mean_a, sd_a, n_a, mean_b, sd_b, n_b, alpha=alpha)
+                result["kpi_type"] = kpi_type
+
+                revenue_a = mean_a * n_a
+                revenue_b = mean_b * n_b
+                roi_a = (revenue_a - cost_a) / cost_a if cost_a > 0 else 0.0
+                roi_b = (revenue_b - cost_b) / cost_b if cost_b > 0 else 0.0
+                payback_a = cost_a / revenue_a if revenue_a > 0 else float("inf")
+                payback_b = cost_b / revenue_b if revenue_b > 0 else float("inf")
+
+                table = [
+                    ["Metric", "Group A", "Group B"],
+                    ["Mean", f"{mean_a:.4f}", f"{mean_b:.4f}"],
+                    ["Revenue ($)", f"{revenue_a:.2f}", f"{revenue_b:.2f}"],
+                    ["ROI", f"{roi_a:.2%}", f"{roi_b:.2%}"],
+                    ["Payback Period", f"{payback_a:.2f}", f"{payback_b:.2f}"],
+                    ["Δ Mean (CI)", f"{result['diff']:.4f}", f"[{result['ci_lower']:.4f}; {result['ci_upper']:.4f}]"],
+                ]
+
+                print("\nAdvanced Metrics (Means KPI: ROI & Payback)")
+                print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
+                if warn:
+                    print(f"Note: {warn}")
+
+                logging.info(
+                    f"[{kpi_type}] Advanced (means) | ROI_A={roi_a:.4f}, Payback_A={payback_a:.4f} | "
+                    f"ROI_B={roi_b:.4f}, Payback_B={payback_b:.4f}"
+                )
 
         elif choice == "5":
-            visitors_a=int(input("Enter visitors in Group A: "))
-            conversions_a=int(input("Enter conversions in Group A: "))
-            visitors_b=int(input("Enter visitors in Group B: "))
-            conversions_b=int(input("Enter conversions in Group B: "))
-            value_per_conversion=float(input("Enter value per conversion ($): "))
-            cost_a=float(input("Enter total cost for Group A ($): "))
-            cost_b=float(input("Enter total cost for Group B ($): "))
+            kpi_type = choose_kpi()
+            if kpi_type not in ("cr", "churn"):
+                print("Bayesian Expected Metrics currently support only CR/Churn. Use option 4 for ARPU/LTV.")
+                continue
 
-            metrics=bayesian_expected_metrics(visitors_a, conversions_a, visitors_b, conversions_b)
-
-            roi_a=(metrics['expected_value_a']-cost_a)/cost_a if cost_a>0 else 0
-            roi_b=(metrics['expected_value_b']-cost_b)/cost_b if cost_b>0 else 0
-
-            payback_a=cost_a/metrics['expected_value_a'] if metrics['expected_value_a']>0 else float("inf")
-            payback_b=cost_b/metrics['expected_value_b'] if metrics['expected_value_b']>0 else float("inf")
+            data = get_inputs_for_kpi(kpi_type)
+            metrics = bayesian_expected_metrics(
+                data["visitors_a"], data["conversions_a"],
+                data["visitors_b"], data["conversions_b"]
+            )
+            metrics["kpi_type"] = kpi_type
 
             table = [
-                ["Metric", "Group A", "Group B"],
-                ["Expected Loss", f"{metrics['expected_loss_a']:.2f}", f"{metrics['expected_loss_b']:.2f}"],
-                ["Expected Value ($)", f"{metrics['expected_value_a']:.2f}", f"{metrics['expected_value_b']:.2f}"],
-                ["ROI", f"{roi_a:.2%}", f"{roi_b:.2%}"],
-                ["Payback Period", f"{payback_a:.2f}", f"{payback_b:.2f}"],
+                ["Metric", "Group A", "Group B", "Note"],
+                ["Expected Loss", f"{metrics['expected_loss_a']:.2f}", f"{metrics['expected_loss_b']:.2f}", ""],
+                ["Expected Value ($)", f"{metrics['expected_value_a']:.2f}", f"{metrics['expected_value_b']:.2f}", ""]
             ]
 
-            print("\nBayesian Expected Metrics (with ROI & Payback)")
+            print("\nBayesian Expected Metrics (Table)")
             print(tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
 
             save = input("Save results? (csv/json/skip): ").strip().lower()
             if save in ["csv", "json"]:
                 from csvjsonm import save_results
-                save_results(result, "bayesian_expected_metrics", save)
+                save_results(metrics, "bayesian_expected_metrics", save)
 
             logging.info(
-                f"Bayesian Expected Metrics | A: ROI={roi_a:.4f}, Payback={payback_a:.4f} | "
-                f"B: ROI={roi_b:.4f}, Payback={payback_b:.4f}"
+                f"[{kpi_type}] Bayesian Expected | "
+                f"Loss_A={metrics['expected_loss_a']:.4f}, Loss_B={metrics['expected_loss_b']:.4f}, "
+                f"EV_A={metrics['expected_value_a']:.2f}, EV_B={metrics['expected_value_b']:.2f}"
             )
 
         elif choice == "6":
-            visitors_a=int(input("Enter visitors in Group A: "))
-            conversions_a=int(input("Enter conversions in Group A: "))
-            visitors_b=int(input("Enter visitors in Group B: "))
-            conversions_b=int(input("Enter conversions in Group B: "))
-            value_per_conversion=float(input("Enter value per conversion ($): "))
-            cost_b=float(input("Enter total cost for Group B ($): "))
+            kpi_type = choose_kpi()
+            if kpi_type not in ("cr", "churn"):
+                print("Bayesian Decision Analysis currently supports only CR/Churn. Use option 4 for ARPU/LTV.")
+                continue
 
-            decision=bayesian_decision_analysis(visitors_a, conversions_a, visitors_b, conversions_b, value_per_conversion=value_per_conversion)
-
-            roi_b=(decision['expected_value']-cost_b)/cost_b if cost_b>0 else 0
-            payback_b=cost_b/decision['expected_value'] if decision['expected_value']>0 else float("inf")
+            data = get_inputs_for_kpi(kpi_type)
+            value_per_conversion = float(input("Enter value per success/conversion ($): "))
+            decision = bayesian_decision_analysis(
+                data["visitors_a"], data["conversions_a"],
+                data["visitors_b"], data["conversions_b"],
+                value_per_conversion=value_per_conversion
+            )
+            decision["kpi_type"] = kpi_type
 
             table = [
                 ["Metric", "Value"],
                 ["Probability B > A", f"{decision['prob_b_better']:.2%}"],
                 ["Expected Value ($)", f"{decision['expected_value']:.2f}"],
                 ["Expected Regret ($)", f"{decision['expected_regret']:.2f}"],
-                ["Expected Utility ($)", f"{decision['expected_utility']:.2f}"],
-                ["ROI (B)", f"{roi_b:.2%}"],
-                ["Payback (B)", f"{payback_b:.2f}"],
+                ["Expected Utility ($)", f"{decision['expected_utility']:.2f}"]
             ]
 
-            print("\nBayesian Decision Analysis (with ROI & Payback)")
+            print("\nBayesian Decision Analysis (Table)")
             print(tabulate(table, headers="firstrow", tablefmt="grid"))
 
             save = input("Save results? (csv/json/skip): ").strip().lower()
             if save in ["csv", "json"]:
                 from csvjsonm import save_results
-                save_results(result, "bayesian_decision_analysis", save)
+                save_results(decision, "bayesian_decision_analysis", save)
 
-            logging.info(f"Bayesian Decision Analysis | ROI(B)={roi_b:.4f}, Payback(B)={payback_b:.4f}")
+            logging.info(
+                f"[{kpi_type}] Bayesian Decision | "
+                f"P(B>A)={decision['prob_b_better']:.4f}, "
+                f"EV={decision['expected_value']:.2f}, "
+                f"Regret={decision['expected_regret']:.2f}, "
+                f"Utility={decision['expected_utility']:.2f}"
+            )
 
         elif choice == "7":
-            visitors_a=int(input("Enter visitors in Group A: "))
-            conversions_a=int(input("Enter conversions in Group A: "))
-            visitors_b=int(input("Enter visitors in Group B: "))
-            conversions_b=int(input("Enter conversions in Group B: "))
-            value_per_conversion=float(input("Enter value per conversion ($): "))
-            cost_a=float(input("Enter total cost for Group A ($): "))
-            cost_b=float(input("Enter total cost for Group B ($): "))
+            kpi_type = choose_kpi()
+            if kpi_type not in ("cr", "churn"):
+                print("Sequential Bayesian Monitoring currently supports only CR/Churn.")
+                continue
 
-            monitoring=sequential_bayesian_monitoring(visitors_a, conversions_a, visitors_b, conversions_b)
+            data = get_inputs_for_kpi(kpi_type)
+            monitoring = sequential_bayesian_monitoring(
+                data["visitors_a"], data["conversions_a"],
+                data["visitors_b"], data["conversions_b"]
+            )
+            monitoring["kpi_type"] = kpi_type
 
-            revenue_a=conversions_a*value_per_conversion
-            revenue_b=conversions_b*value_per_conversion
-
-            roi_a=(revenue_a-cost_a)/cost_a if cost_a>0 else 0
-            roi_b=(revenue_b-cost_b)/cost_b if cost_b>0 else 0
-
-            payback_a=cost_a/revenue_a if revenue_a>0 else float("inf")
-            payback_b=cost_b/revenue_b if revenue_b>0 else float("inf")
-
-            print("\nSequential Bayesian Monitoring (with ROI & Payback)")
+            print("\nSequential Bayesian Monitoring")
             print(f"Posterior Mean A: {monitoring['posterior_mean_a']:.4f}")
             print(f"Posterior Mean B: {monitoring['posterior_mean_b']:.4f}")
             print(f"Probability B > A: {monitoring['prob_b_better']:.2%}")
-            print(f"ROI A: {roi_a:.2%}, ROI B: {roi_b:.2%}")
-            print(f"Payback A: {payback_a:.2f}, Payback B: {payback_b:.2f}")
+            print(f"Decision: {monitoring['decision']}")
 
             logging.info(
-                f"Sequential Monitoring | ROI(A)={roi_a:.4f}, Payback(A)={payback_a:.4f} | "
-                f"ROI(B)={roi_b:.4f}, Payback(B)={payback_b:.4f}"
+                f"[{kpi_type}] Sequential Monitoring | "
+                f"PostMeanA={monitoring['posterior_mean_a']:.4f}, "
+                f"PostMeanB={monitoring['posterior_mean_b']:.4f}, "
+                f"P(B>A)={monitoring['prob_b_better']:.4f}, Decision={monitoring['decision']}"
             )
 
         elif choice == "0":

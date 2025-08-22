@@ -99,7 +99,7 @@ Graph saved as bayesian_ab.png
 - [x] Relative Uplift
 - [x] Expected Loss & Expected Value in $
 - [x] ROI / Payback period
-- [ ] Support for various KPIs: not only conversions, but also ARPU, LTV, Churn
+- [x] Support for various KPIs: not only conversions, but also ARPU, LTV, Churn
 
 ### ✧  Stage 4. Multi-variant experiments
 - [ ] A/B/n tests (more than 2 options)
