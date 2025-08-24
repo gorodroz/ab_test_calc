@@ -7,6 +7,7 @@ from tabulate import tabulate
 import json
 import csv
 import logging
+from n_test_mod import run_n_test, print_n_results
 
 logging.basicConfig(
     filename="ab_test_calc_log.txt",
@@ -329,6 +330,44 @@ def infer_means_payload(kpi_inputs, kpi_type):
 
     return mean_a, sd_a, n_a, mean_b, sd_b, n_b, warning
 
+def run_n_test_cli():
+    print("\n=== Multi-variant A/B/n test ===")
+    print("Choose KPI type:")
+    print("1. Conversion Rate (CR)")
+    print("2. ARPU")
+    print("3. LTV")
+    print("4. Churn")
+    kpi_choice=input("Enter KPI (1/2/3/4): ").strip()
+
+    if kpi_choice == "1":
+        kpi_type = "conversion"
+    else:
+        kpi_type = "mean"
+
+    groups = {}
+    while True:
+        name = input("\nEnter group name (or press Enter to finish): ").strip()
+        if not name:
+            break
+
+        users = int(input(f"Enter users in Group {name}: "))
+
+        if kpi_type == "conversion":
+            convr = int(input(f"Enter conversions in Group {name}: "))
+            groups[name] = {"users": users, "conversions": convr}
+        else:
+            total = float(input(f"Enter TOTAL value for KPI in Group {name}: "))
+            sd = input(f"Enter sample SD per user for Group {name} (optional, press Enter to skip): ")
+            sd = float(sd) if sd.strip() != "" else None
+            groups[name] = {"users": users, "total": total, "sd": sd}
+
+    alpha = input("Enter significance level (default 0.05): ").strip()
+    alpha = float(alpha) if alpha else 0.05
+
+    results = run_n_test(groups, kpi_type=kpi_type, alpha=alpha)
+
+    print_n_results(results, kpi_type=kpi_type)
+
 #Main CLI
 def main():
     while True:
@@ -340,6 +379,7 @@ def main():
         print("5. Bayesian Expected Metrics (Loss & Value)")
         print("6. Bayesian Decision Analysis (Utility & Regret)")
         print("7. Sequential Bayesian Monitoring")
+        print("8. Multi-varian A/B/n test")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
@@ -633,6 +673,9 @@ def main():
                 f"PostMeanB={monitoring['posterior_mean_b']:.4f}, "
                 f"P(B>A)={monitoring['prob_b_better']:.4f}, Decision={monitoring['decision']}"
             )
+
+        elif choice == "8":
+            run_n_test_cli()
 
         elif choice == "0":
             print("Exit")
