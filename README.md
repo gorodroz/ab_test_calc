@@ -103,7 +103,7 @@ Graph saved as bayesian_ab.png
 
 ### ✧  Stage 4. Multi-variant experiments
 - [x] A/B/n tests (more than 2 options)
-- [ ] Correction for multiple comparisons (Bonferroni, Holm-Bonferroni)
+- [x] Correction for multiple comparisons (Bonferroni, Holm-Bonferroni)
 - [ ] Choosing ‘leaders’ from among 3+ options
 
 ### ✧  Stage 5. Statistical extensions

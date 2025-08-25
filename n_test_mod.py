@@ -1,7 +1,9 @@
 import numpy
 from scipy.stats import chi2_contingency, f_oneway
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
+from statsmodels.stats.multitest import multipletests
 from tabulate import tabulate
+from itertools import combinations
 
 def run_n_test(data, kpi_type="conversion", alpha=0.05):
     """
@@ -56,6 +58,9 @@ def run_n_test(data, kpi_type="conversion", alpha=0.05):
         convr_rates={g: vals["conversions"]/vals["users"] for g, vals in data.items()}
         results["conversion_rates"]=convr_rates
 
+        pairwise=pairwise_chi2(data, alpha=alpha, method="holm")
+        results["pairwise"]=pairwise
+
 
     else:
         groups=[]
@@ -82,7 +87,7 @@ def run_n_test(data, kpi_type="conversion", alpha=0.05):
 
     return results
 ##########################################################
-def print_n_results(results, kpi_type="conversions"):
+def print_n_results(results, kpi_type="conversion"):
     print("\n===A/B/n Test Results===")
     if "global_test" in results:
         print(tabulate(
@@ -99,6 +104,51 @@ def print_n_results(results, kpi_type="conversions"):
         rows=[(g, f"{cr:.2%}") for g, cr in results["conversion_rates"].items()]
         print("\nConversion Rates by Group")
         print(tabulate(rows, headers=["Group", "Rate"], tablefmt="grid"))
+
+        if "pairwise" in results:
+            print("\nPairwise comparisons with Holm-Bonferroni correction:")
+            rows = [
+                (r["group1"], r["group2"],
+                f"{r['p_value_raw']:.4f}",
+                f"{r['p_value_corrected']:.4f}",
+                "Yes" if r["significant"] else "No")
+                for r in results["pairwise"]
+            ]
+            print(tabulate(rows, headers=["Group1", "Group2", "p_raw", "p_corrected", "Significant?"], tablefmt="grid"))
+
     else:
         print("\nPost-hoc Analysis (Tukey HSD)")
         print(results["posthoc"])
+##########################################################
+def pairwise_chi2(groups, alpha=0.05, method="holm"):
+    ###run pairwise chi2 tests with multiple comparisons correction###
+    results=[]
+    names=list(groups.keys())
+    p_values=[]
+
+    for g1, g2 in combinations(names, 2):
+        convr1, users1 = groups[g1]["conversions"], groups[g1]["users"]
+        convr2, users2 = groups[g2]["conversions"], groups[g2]["users"]
+
+        table=[[convr1, users1 - convr1],
+               [convr2, users2 - convr2]]
+
+        chi2, p, _, _ = chi2_contingency(table)
+        results.append([g1,g2,chi2,p])
+        p_values.append(p)
+
+    ###correction
+    reject, p_corr, _, _ = multipletests(p_values, alpha=alpha, method=method)
+
+    final=[]
+    for (g1, g2, chi2, p), p_corr, rej in zip(results, p_corr, reject):
+        final.append({
+            "group1":g1,
+            "group2":g2,
+            "chi2":chi2,
+            "p_value_raw": p,
+            "p_value_corrected": p_corr,
+            "significant": rej
+        })
+
+    return  final
