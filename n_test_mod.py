@@ -4,6 +4,7 @@ from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from statsmodels.stats.multitest import multipletests
 from tabulate import tabulate
 from itertools import combinations
+import math
 
 
 def run_n_test(data, kpi_type="conversion", alpha=0.05):
@@ -207,3 +208,44 @@ def pairwise_ttests(groups, names, alpha=0.05, method="holm"):
             "significant": rej
         })
     return final
+
+def run_sequential_test(data_over_time, kpi_type="conversion", alpha=0.05, method="pocock"):
+    K=len(data_over_time)
+
+    if method == "pocock":
+        crit = -math.log(1-alpha)/K
+        thresholds=[alpha/2]*K
+    elif method == 'obrien':
+        thresholds = [alpha / (i+1) for i in range(K)]
+    else:
+        raise ValueError("Unknown sequential method. Use 'pocock' or 'obrien'.")
+
+    results = []
+    stop = False
+
+    for i, (day, data) in enumerate(data_over_time.items(), start = 1):
+        res = run_n_test(data, kpi_type=kpi_type, alpha=alpha)
+        p=res["global_test"]["p_value"]
+        crit = thresholds[i-1]
+        significant = p < crit
+
+        results.append({
+            "day":day,
+            "p_value":p,
+            "threshold":crit,
+            "significant": significant
+        })
+
+        if significant:
+            stop = True
+            break
+
+    return results
+
+def print_sequential_results(results):
+    print("\n=== Sequential Test Results ===")
+    rows=[
+        (r["day"], f"{r['p_value']:.4f}", f"{r['threshold']:.4f}", "STOP" if r["significant"] else "continue")
+        for r in results
+    ]
+    print(tabulate(rows, headers=["Day", "P-value", "Threshold", "Decision"], tablefmt="grid"))

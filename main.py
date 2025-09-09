@@ -8,6 +8,7 @@ import json
 import csv
 import logging
 from n_test_mod import run_n_test, print_n_results
+from n_test_mod import run_sequential_test, print_sequential_results
 
 logging.basicConfig(
     filename="ab_test_calc_log.txt",
@@ -368,6 +369,67 @@ def run_n_test_cli():
 
     print_n_results(results, kpi_type=kpi_type)
 
+def run_sequential_cli():
+    print("\n=== Sequential Testing ===")
+    print("Choose KPI type:")
+    print("1. Conversion Rate (CR)")
+    print("2. ARPU")
+    print("3. LTV")
+    print("4. Churn")
+    kpi_choice = input("Enter KPI (1/2/3/4):").strip()
+
+    if kpi_choice == "1":
+        kpi_type = "conversion"
+    else:
+        kpi_type = "mean"
+
+    data_over_time={}
+    day = 1
+    while True:
+        print(f"\n+++ Data for Day {day} +++")
+        day_name=f"day{day}"
+        groups={}
+
+        while True:
+            name = input("\nEnter group name (or press Enter to finish day):").strip()
+            if not name:
+                break
+
+            users = int(input(f"Enter users in Group {name}: "))
+
+            if kpi_type == "conversion":
+                conv = int(input(f"Enter conversions in Group {name}: "))
+                groups[name] = {"users":users, "conversions":conv}
+            else:
+                total = float(input(f"Enter TOTAL value for KPI in Group {name}: "))
+                sd = input(f"Enter sample SD per user for group {name} (optional, press Enter to skip): ")
+                sd = float(sd) if sd.strip() != "" else None
+                groups[name] = {"users":users, "total": total, "sd":sd}
+
+        if not groups:
+            break
+
+        data_over_time[day_name] = groups
+        day += 1
+
+        cont = input("Add another day? (y/n): ").strip().lower()
+        if cont != "y":
+            break
+
+    alpha = input("Enter significance level (default 0.05): ").strip()
+    alpha = float(alpha) if alpha else 0.05
+
+    print("\nChoose sequential method:")
+    print("1. Pocock")
+    print("2. OBrien-Fleming")
+    method_choice = input("Enter method (1/2): ").strip()
+    method = "pocock" if method_choice == "1" else "obrien"
+
+    results = run_sequential_test(data_over_time, kpi_type=kpi_type, alpha=alpha, method=method)
+    print_sequential_results(results)
+
+############################################################################################
+
 #Main CLI
 def main():
     while True:
@@ -380,6 +442,7 @@ def main():
         print("6. Bayesian Decision Analysis (Utility & Regret)")
         print("7. Sequential Bayesian Monitoring")
         print("8. Multi-varian A/B/n test")
+        print("9. Sequential testing")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
@@ -676,6 +739,9 @@ def main():
 
         elif choice == "8":
             run_n_test_cli()
+
+        elif choice == "9":
+            run_sequential_cli()
 
         elif choice == "0":
             print("Exit")
