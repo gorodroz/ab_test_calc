@@ -107,7 +107,7 @@ Graph saved as bayesian_ab.png
 - [x] Choosing ‘leaders’ from among 3+ options
 
 ### ✧  Stage 5. Statistical extensions
-- [ ] Sequential testing
+- [x] Sequential testing
 - [ ] Monte Carlo simulations
 - [ ] Bayesian credible intervals + Expected Utility
 - [ ] Decision-theoretic approach
