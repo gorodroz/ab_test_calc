@@ -9,6 +9,7 @@ import csv
 import logging
 from n_test_mod import run_n_test, print_n_results
 from n_test_mod import run_sequential_test, print_sequential_results
+from montecarlo_mod import run_montecarlo, print_montecarlo_results
 
 logging.basicConfig(
     filename="ab_test_calc_log.txt",
@@ -443,6 +444,7 @@ def main():
         print("7. Sequential Bayesian Monitoring")
         print("8. Multi-varian A/B/n test")
         print("9. Sequential testing")
+        print("10. Monte Carlo simulation")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
@@ -742,6 +744,37 @@ def main():
 
         elif choice == "9":
             run_sequential_cli()
+
+        elif choice == "10":
+            print("\n=== Monte Carlo Simulation ===")
+            print("Choose KPI type:")
+            print("1. Conversion Rate (CR)")
+            print("2. ARPU")
+            print("3. LTV")
+            print("4. Churn")
+            kpi_choice = input("Enter KPI (1/2/3/4): ").strip()
+            kpi_type = "conversion" if kpi_choice == "1" else "mean"
+
+            groups = {}
+            while True:
+                name = input("\nEnter group name (or press Enter to finish): ").strip()
+                if not name:
+                    break
+                users = int(input(f"Enter users in Group {name}: "))
+                if kpi_type == "conversion":
+                    conv = int(input(f"Enter conversions in Group {name}: "))
+                    groups[name] = {"users": users, "conversions": conv}
+                else:
+                    total = float(input(f"Enter TOTAL value for KPI in Group {name}: "))
+                    sd = input(f"Enter sample SD per user for Group {name} (optional, press Enter to skip): ")
+                    sd = float(sd) if sd.strip() != "" else None
+                    groups[name] = {"users": users, "total": total, "sd": sd}
+
+            n_sim = input("Enter number of simulations (default 10000): ").strip()
+            n_sim = int(n_sim) if n_sim else 10000
+
+            results = run_montecarlo(groups, kpi_type=kpi_type, n_sim=n_sim)
+            print_montecarlo_results(results)
 
         elif choice == "0":
             print("Exit")

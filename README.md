@@ -108,7 +108,7 @@ Graph saved as bayesian_ab.png
 
 ### ✧  Stage 5. Statistical extensions
 - [x] Sequential testing
-- [ ] Monte Carlo simulations
+- [x] Monte Carlo simulations
 - [ ] Bayesian credible intervals + Expected Utility
 - [ ] Decision-theoretic approach
 
