@@ -10,6 +10,9 @@ import logging
 from n_test_mod import run_n_test, print_n_results
 from n_test_mod import run_sequential_test, print_sequential_results
 from montecarlo_mod import run_montecarlo, print_montecarlo_results
+from bayesian_mod import bayesian_test, print_bayesian_results
+from decision_mod import decision_analysis, print_decision_results
+from markov_mod import build_transition_matrix, simulate_markov, steady_state, expected_ltv, print_markov_results
 
 logging.basicConfig(
     filename="ab_test_calc_log.txt",
@@ -429,6 +432,85 @@ def run_sequential_cli():
     results = run_sequential_test(data_over_time, kpi_type=kpi_type, alpha=alpha, method=method)
     print_sequential_results(results)
 
+def run_decision_cli():
+    print("\n=== Bayesian Decision-Theoretic Analysis ===")
+    print("Choose KPI type:")
+    print("1. Conversion Rate (CR)")
+    print("2. ARPU")
+    print("3. LTV")
+    print("4. Churn")
+    kpi_choice = input("Enter KPI (1/2/3/4): ").strip()
+
+    kpi_type = "conversion" if kpi_choice == "1" else "mean"
+
+    groups = {}
+    while True:
+        name = input("\nEnter group name (or press Enter to finish): ").strip()
+        if not name:
+            break
+
+        users = int(input(f"Enter users in Group {name}: "))
+
+        if kpi_type == "conversion":
+            conv = int(input(f"Enter conversions in Group {name}: "))
+            groups[name] = {"users": users, "conversions": conv}
+        else:
+            total = float(input(f"Enter TOTAL value for KPI in Group {name}: "))
+            sd = input(f"Enter sample SD per user for Group {name} (optional, press Enter to skip): ")
+            sd = float(sd) if sd.strip() else None
+            groups[name] = {"users": users, "total": total, "sd": sd}
+
+    alpha = input("Enter credible interval level (default 0.05): ").strip()
+    alpha = float(alpha) if alpha else 0.05
+
+    gain = input("Enter utility gain (default 1): ").strip()
+    loss = input("Enter utility loss (default -1): ").strip()
+    utility = {
+        "gain": float(gain) if gain else 1.0,
+        "loss": float(loss) if loss else -1.0
+    }
+
+    sims = input("Number of Monte Carlo simulations (default 5000): ").strip()
+    sims = int(sims) if sims else 5000
+
+    results = decision_analysis(groups, kpi_type=kpi_type, alpha=alpha, utility=utility, simulations=sims)
+    print_decision_results(results)
+
+def run_markov_cli():
+    print("\n=== Markov Chain Economic Model ===")
+
+    states_input = input("Enter states (comma-separated, e.g., Active,Churned): ").strip()
+    states = [s.strip() for s in states_input.split(",")]
+
+    print("\nNow enter transition counts between states:")
+    data = {}
+    for s_from in states:
+        for s_to in states:
+            count = input(f"Count of transitions {s_from} -> {s_to} (default 0): ").strip()
+            count = int(count) if count else 0
+            data[(s_from, s_to)] = count
+
+    P = build_transition_matrix(data, states)
+
+    initial_state_name = input(f"Enter initial state from {states}: ").strip()
+    initial_state = states.index(initial_state_name)
+    steps = int(input("Number of steps to simulate (default 10): ") or 10)
+    history = simulate_markov(P, initial_state=initial_state, steps=steps)
+
+    steady = steady_state(P)
+
+    print("\nEnter revenue per state (e.g., Active=100, Churned=0):")
+    revenues = []
+    for s in states:
+        val = input(f"Revenue for state {s}: ").strip()
+        revenues.append(float(val) if val else 0.0)
+    revenues = numpy.array(revenues)
+
+    discount = float(input("Enter discount factor (default 0.95): ") or 0.95)
+    ltv = expected_ltv(P, revenues, initial_state=initial_state, discount=discount)
+
+    print_markov_results(P, states, history, steady, ltv)
+
 ############################################################################################
 
 #Main CLI
@@ -445,6 +527,9 @@ def main():
         print("8. Multi-varian A/B/n test")
         print("9. Sequential testing")
         print("10. Monte Carlo simulation")
+        print("11. Bayesian credible intervals & Expected Utility")
+        print("12. Bayesian Decision-Theoretic Analysis")
+        print("13. Markov chain modelling")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
@@ -775,6 +860,49 @@ def main():
 
             results = run_montecarlo(groups, kpi_type=kpi_type, n_sim=n_sim)
             print_montecarlo_results(results)
+
+        elif choice == "11":
+            print("\n=== Bayesian Test with Credible Intervals & Expected Utility ===")
+            print("Choose KPI type:")
+            print("1. Conversion Rate (CR)")
+            print("2. ARPU")
+            kpi_choice = input("Enter KPI (1/2): ").strip()
+            kpi_type = "conversion" if kpi_choice == "1" else "mean"
+
+            groups = {}
+            while True:
+                name = input("\nEnter group name (or press Enter to finish): ").strip()
+                if not name:
+                    break
+                users = int(input(f"Enter users in Group {name}: "))
+                if kpi_type == "conversion":
+                    conv = int(input(f"Enter conversions in Group {name}: "))
+                    groups[name] = {"users": users, "conversions": conv}
+                else:
+                    total = float(input(f"Enter TOTAL value for KPI in Group {name}: "))
+                    sd = input(f"Enter sample SD per user for Group {name} (optional, press Enter to skip): ")
+                    sd = float(sd) if sd.strip() != "" else None
+                    groups[name] = {"users": users, "total": total, "sd": sd}
+
+            alpha = input("Enter significance level (default 0.05): ").strip()
+            alpha = float(alpha) if alpha else 0.05
+
+            use_utility = input("Run Expected Utility Analysis? (y/n): ").strip().lower()
+            utility = None
+            if use_utility == "y":
+                gain = float(input("Enter gain if better option chosen: "))
+                loss = float(input("Enter loss if worse option chosen: "))
+                utility = {"gain": gain, "loss": loss}
+
+            results = bayesian_test(groups, kpi_type=kpi_type, alpha=alpha, utility=utility)
+            print_bayesian_results(results)
+
+        elif choice == "12":
+            run_decision_cli()
+
+
+        elif choice == "13":
+            run_markov_cli()
 
         elif choice == "0":
             print("Exit")

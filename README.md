@@ -109,11 +109,11 @@ Graph saved as bayesian_ab.png
 ### ✧  Stage 5. Statistical extensions
 - [x] Sequential testing
 - [x] Monte Carlo simulations
-- [ ] Bayesian credible intervals + Expected Utility
-- [ ] Decision-theoretic approach
+- [x] Bayesian credible intervals + Expected Utility
+- [x] Decision-theoretic approach
 
 ### ✧  Stage 6. Economic and mathematical modelling
-- [ ] Markov chains
+- [x] Markov chains
 - [ ] Linear optimisation
 - [ ] Scenario analysis
 - [ ] Cost-benefit simulation
