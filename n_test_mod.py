@@ -6,6 +6,8 @@ from tabulate import tabulate
 from itertools import combinations
 import math
 from visual_mod import plot_abn_results
+from visual_mod import plot_cumulative_results
+from scipy.stats import norm
 
 
 def run_n_test(data, kpi_type="conversion", alpha=0.05):
@@ -153,6 +155,8 @@ def print_n_results(results, kpi_type="conversion"):
     if "leader" in results:
         print(f"\n>>> Leader: {results['leader']}")
 
+    plot_abn_results(results, kpi_type=kpi_type)
+
 
 def pairwise_chi2(groups, alpha=0.05, method="holm"):
     """Run pairwise chi2 tests with multiple comparisons correction"""
@@ -211,42 +215,67 @@ def pairwise_ttests(groups, names, alpha=0.05, method="holm"):
     return final
 
 def run_sequential_test(data_over_time, kpi_type="conversion", alpha=0.05, method="pocock"):
-    K=len(data_over_time)
+    if not data_over_time:
+        return []
 
-    if method == "pocock":
-        crit = -math.log(1-alpha)/K
-        thresholds=[alpha/2]*K
-    elif method == 'obrien':
-        thresholds = [alpha / (i+1) for i in range(K)]
+    K = len(data_over_time)
+
+    if method == "bonferroni":
+        thresholds = [alpha / K] * K
+    elif method == "pocock":
+        per_alpha = 1 - (1 - alpha) ** (1 / K)
+        thresholds = [per_alpha] * K
+    elif method == "obrien":
+        z_overall = norm.ppf(1 - alpha / 2)
+        thresholds = []
+        for i in range(1, K + 1):
+            z_i = z_overall / math.sqrt(i / K)
+            p_i = 2 * (1 - norm.cdf(abs(z_i)))
+            thresholds.append(p_i)
     else:
-        raise ValueError("Unknown sequential method. Use 'pocock' or 'obrien'.")
+        raise ValueError("Unknown sequential method. Use 'pocock', 'bonferroni' or 'obrien'.")
 
     results = []
-    stop = False
-
-    for i, (day, data) in enumerate(data_over_time.items(), start = 1):
+    for i, (day, data) in enumerate(data_over_time.items(), start=1):
         res = run_n_test(data, kpi_type=kpi_type, alpha=alpha)
-        p=res["global_test"]["p_value"]
-        crit = thresholds[i-1]
-        significant = p < crit
+        p = res.get("global_test", {}).get("p_value")
+        if p is None:
+            p = res.get("p_value", None)
+
+        threshold = thresholds[i - 1]
+        significant = (p is not None) and (p < threshold)
 
         results.append({
-            "day":day,
-            "p_value":p,
-            "threshold":crit,
-            "significant": significant
+            "day": day,
+            "p_value": float(p) if p is not None else None,
+            "threshold": float(threshold),
+            "significant": bool(significant)
         })
 
         if significant:
-            stop = True
+            # stop on first significant look
             break
 
     return results
 
-def print_sequential_results(results):
+def print_sequential_results(results, plot=False, data_over_time=None, kpi_type=None):
     print("\n=== Sequential Test Results ===")
-    rows=[
-        (r["day"], f"{r['p_value']:.4f}", f"{r['threshold']:.4f}", "STOP" if r["significant"] else "continue")
-        for r in results
-    ]
+    if not results:
+        print("No results to show.")
+        return
+
+    rows = []
+    for r in results:
+        p_str = f"{r['p_value']:.4f}" if r['p_value'] is not None else "N/A"
+        thr_str = f"{r['threshold']:.4f}"
+        decision = "STOP" if r["significant"] else "continue"
+        rows.append((r["day"], p_str, thr_str, decision))
+
     print(tabulate(rows, headers=["Day", "P-value", "Threshold", "Decision"], tablefmt="grid"))
+
+    if plot and (data_over_time is not None) and (kpi_type is not None):
+        try:
+            p_values = {r["day"]: r["p_value"] for r in results}
+            plot_cumulative_results(data_over_time, kpi_type=kpi_type, p_values=p_values)
+        except Exception as e:
+            print(f"[plotting error] Could not plot cumulative results: {e}")

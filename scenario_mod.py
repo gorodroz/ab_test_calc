@@ -1,4 +1,3 @@
-import numpy as np
 from tabulate import tabulate
 from visual_mod import plot_scenarios
 
@@ -23,3 +22,4 @@ def print_scenario_results(results):
         for scen, vals in results.items()
     ]
     print(tabulate(rows, headers=["Scenario", "Outcome", "Parameters"], tablefmt="grid"))
+    plot_scenarios(results)

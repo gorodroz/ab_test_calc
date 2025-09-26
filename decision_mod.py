@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import beta, norm
 from tabulate import tabulate
-from visual_mod import plot_decision_results
+from visual_mod import plot_decision_results, plot_decision_heatmap, plot_decision_scatter
 
 def decision_analysis(data, kpi_type="conversion", utility=None, alpha=0.05, simulations=5000):
     if utility is None:
@@ -34,20 +34,28 @@ def decision_analysis(data, kpi_type="conversion", utility=None, alpha=0.05, sim
 
     eu = {g: val / simulations for g, val in eu.items()}
 
-    #Best decision
+    # === NEW: Expected Regret ===
+    max_eu = max(eu.values())
+    er = {g: max_eu - val for g, val in eu.items()}
+
     leader = max(eu, key=eu.get)
 
     return {
         "expected_utilities": eu,
+        "expected_regret": er,     # NEW
         "decision": leader,
         "utility": utility,
         "alpha": alpha
     }
 
-
 def print_decision_results(results):
     print("\n=== Bayesian Decision-Theoretic Analysis ===")
-    rows = [(g, f"{eu:.4f}") for g, eu in results["expected_utilities"].items()]
-    print(tabulate(rows, headers=["Group", "Expected Utility"], tablefmt="grid"))
+    rows = [(g, f"{results['expected_utilities'][g]:.4f}", f"{results['expected_regret'][g]:.4f}")
+            for g in results["expected_utilities"]]
+    print(tabulate(rows, headers=["Group", "Expected Utility", "Expected Regret"], tablefmt="grid"))
     print(f"\n>>> Recommended Decision: Choose **{results['decision']}**")
     print(f"Utility function: gain={results['utility']['gain']}, loss={results['utility']['loss']}")
+    plot_decision_scatter(results["expected_utilities"], results["expected_regret"])
+    plot_decision_scatter(results["expected_utilities"], results["expected_regret"])
+    plot_decision_heatmap(results["expected_utilities"], results["expected_regret"])
+

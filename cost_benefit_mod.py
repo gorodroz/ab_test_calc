@@ -38,3 +38,4 @@ def print_cost_benefit_results(results):
         ("ROI (95th pct)", f"{results['roi_p95']:.2f}")
     ]
     print(tabulate(rows, headers=["Metric", "Value"], tablefmt="grid"))
+    plot_cost_benefit(results)

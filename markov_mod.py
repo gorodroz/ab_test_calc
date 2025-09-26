@@ -34,6 +34,14 @@ def steady_state(P, tol=1e-8, max_iter=1000):
         pi = new_pi
     return pi
 
+def run_markov_chain(P, start_dist, steps=10):
+    history = [start_dist]
+    current = start_dist
+    for _ in range(steps):
+        current = current @ P
+        history.append(current)
+    return history
+
 def expected_ltv(P, revenues, initial_state, discount=0.95, steps=50):
     history = simulate_markov(P, initial_state, steps)
     discounted = [discount**t * (h @ revenues) for t, h in enumerate(history)]
@@ -51,4 +59,4 @@ def print_markov_results(P, states, history, steady, ltv=None):
     print({s: f"{p:.4f}" for s, p in zip(states, steady)})
     if ltv is not None:
         print(f"\nExpected discounted LTV: {ltv:.2f}")
-    #plot_markov()
+    plot_markov(history, states)

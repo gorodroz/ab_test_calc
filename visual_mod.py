@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+import pandas as pd
 
 # === 1. Sequential Testing (p-values over time) ===
 def plot_cumulative_results(data_over_time, kpi_type="conversion", p_values=None):
@@ -80,14 +82,48 @@ def plot_scenarios(results):
     plt.show()
 
 # === 6. Markov Chains (state evolution) ===
-def plot_markov(states_over_time):
-    plt.figure(figsize=(8, 5))
-    for state, values in states_over_time.items():
-        plt.plot(range(len(values)), values, marker="o", label=state)
+def plot_markov(history, states=None):
+    history = np.array(history)
+    steps = range(len(history))
+    if states is None:
+        states = [f"State{i}" for i in range(history.shape[1])]
 
-    plt.title("Markov Chain State Evolution")
+    plt.figure(figsize=(8,5))
+    for i, state in enumerate(states):
+        plt.plot(steps, history[:, i], marker="o", label=state)
+
     plt.xlabel("Step")
     plt.ylabel("Probability")
+    plt.title("Markov Chain State Evolution")
     plt.legend()
-    plt.grid(alpha=0.3)
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.show()
+
+def plot_decision_scatter(eu, er):
+    plt.figure(figsize=(7, 6))
+    for g in eu.keys():
+        plt.scatter(eu[g], er[g], s=120, label=g)
+        plt.text(eu[g] * 1.01, er[g] * 1.01, g, fontsize=10)
+
+    plt.xlabel("Expected Utility (EV)")
+    plt.ylabel("Expected Regret (ER)")
+    plt.title("Expected Value vs Expected Regret (Scatter)")
+    plt.axhline(0, color="gray", linestyle="--", linewidth=0.8)
+    plt.axvline(max(eu.values()), color="gray", linestyle="--", linewidth=0.8)
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.show()
+
+
+def plot_decision_heatmap(eu, er):
+    df = pd.DataFrame({
+        "Group": list(eu.keys()),
+        "Expected Utility": list(eu.values()),
+        "Expected Regret": list(er.values())
+    })
+    df = df.set_index("Group")
+
+    plt.figure(figsize=(7, 4))
+    sns.heatmap(df, annot=True, fmt=".4f", cmap="RdYlGn_r", cbar=True)
+    plt.title("Expected Value vs Expected Regret (Heatmap)")
     plt.show()
