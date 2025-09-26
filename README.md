@@ -114,9 +114,9 @@ Graph saved as bayesian_ab.png
 
 ### ✧  Stage 6. Economic and mathematical modelling
 - [x] Markov chains
-- [ ] Linear optimisation
-- [ ] Scenario analysis
-- [ ] Cost-benefit simulation
+- [x] Linear optimisation
+- [x] Scenario analysis
+- [x] Cost-benefit simulation
 
 ### ✧  Stage 7. Visualisation and reports
 - [ ] Best graphs (cumulative results over time)

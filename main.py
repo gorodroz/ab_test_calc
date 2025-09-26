@@ -4,8 +4,6 @@ from scipy.stats import norm
 import matplotlib
 import matplotlib.pyplot as plt
 from tabulate import tabulate
-import json
-import csv
 import logging
 from n_test_mod import run_n_test, print_n_results
 from n_test_mod import run_sequential_test, print_sequential_results
@@ -13,6 +11,9 @@ from montecarlo_mod import run_montecarlo, print_montecarlo_results
 from bayesian_mod import bayesian_test, print_bayesian_results
 from decision_mod import decision_analysis, print_decision_results
 from markov_mod import build_transition_matrix, simulate_markov, steady_state, expected_ltv, print_markov_results
+from linear_opt_mod import run_linear_optimization, print_linear_results
+from scenario_mod import run_scenario_analysis, print_scenario_results
+from cost_benefit_mod import run_cost_benefit_simulation, print_cost_benefit_results
 
 logging.basicConfig(
     filename="ab_test_calc_log.txt",
@@ -511,6 +512,86 @@ def run_markov_cli():
 
     print_markov_results(P, states, history, steady, ltv)
 
+def run_linear_opt_cli():
+    print("\n=== Linear Optimization ===")
+
+    n = int(input("Enter number of decision variables: "))
+    var_names = [input(f"Name of variable {i+1}: ") for i in range(n)]
+
+    print("\nEnter objective function coefficients (profit per variable):")
+    objective = [float(input(f"{var}: ")) for var in var_names]
+
+    maximize = input("Maximize? (y/n, default y): ").strip().lower() != "n"
+
+    constraints = {}
+    m = int(input("\nEnter number of constraints: "))
+    for i in range(m):
+        coeffs = [float(input(f"Coefficient for {var} in constraint {i+1}: ")) for var in var_names]
+        sign = input("Sign (<= or >=): ").strip()
+        rhs = float(input("Right-hand side value: "))
+        constraints[f"constr_{i+1}"] = (coeffs, sign, rhs)
+
+    print("\nEnter variable bounds:")
+    bounds = []
+    for var in var_names:
+        lb = float(input(f"Lower bound for {var} (default 0): ") or 0)
+        ub_input = input(f"Upper bound for {var} (default None): ").strip()
+        ub = float(ub_input) if ub_input else None
+        bounds.append((lb, ub))
+
+    result = run_linear_optimization(objective, constraints, bounds, maximize=maximize)
+    print_linear_results(result, var_names)
+
+def run_scenario_cli():
+    print("\n=== Scenario Analysis ===")
+    n = int(input("Enter number of base parameters: "))
+    base_params = {}
+    for i in range(n):
+        key = input(f"Name of parameter {i+1}: ").strip()
+        val = float(input(f"Value of {key}: "))
+        base_params[key] = val
+
+    m = int(input("\nEnter number of scenarios: "))
+    scenarios = {}
+    for j in range(m):
+        scen_name = input(f"\nScenario {j+1} name: ").strip()
+        multipliers = {}
+        for k in base_params:
+            mult = float(input(f"Multiplier for {k} in {scen_name} (default 1.0): ") or 1.0)
+            multipliers[k] = mult
+        scenarios[scen_name] = multipliers
+
+    # Simple default model: profit = (price - cost) * users
+    def default_model(params):
+        if "price" in params and "cost" in params and "users" in params:
+            return (params["price"] - params["cost"]) * params["users"]
+        else:
+            return sum(params.values())  # fallback simple model
+
+    results = run_scenario_analysis(base_params, scenarios, default_model)
+    print_scenario_results(results)
+
+def run_cost_benefit_cli():
+    print("\n=== Cost-Benefit Simulation ===")
+
+    mean_cost = float(input("Enter mean cost: "))
+    sd_cost = float(input("Enter SD of cost (0 if deterministic): ") or 0)
+    mean_benefit = float(input("Enter mean benefit: "))
+    sd_benefit = float(input("Enter SD of benefit (0 if deterministic): ") or 0)
+
+    discount_rate = float(input("Enter discount rate (default 0.0): ") or 0.0)
+    horizon = int(input("Enter time horizon (years, default 1): ") or 1)
+
+    sims = int(input("Number of Monte Carlo simulations (default 10000): ") or 10000)
+
+    cost_params = {"mean": mean_cost, "sd": sd_cost}
+    benefit_params = {"mean": mean_benefit, "sd": sd_benefit}
+
+    results = run_cost_benefit_simulation(cost_params, benefit_params, simulations=sims,
+                                          discount_rate=discount_rate, horizon=horizon)
+
+    print_cost_benefit_results(results)
+
 ############################################################################################
 
 #Main CLI
@@ -530,6 +611,9 @@ def main():
         print("11. Bayesian credible intervals & Expected Utility")
         print("12. Bayesian Decision-Theoretic Analysis")
         print("13. Markov chain modelling")
+        print("14. Linear optimisation")
+        print("15. Scenario analysis")
+        print("16. Cost-benefit simulation")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
@@ -900,9 +984,17 @@ def main():
         elif choice == "12":
             run_decision_cli()
 
-
         elif choice == "13":
             run_markov_cli()
+
+        elif choice == "14":
+            run_linear_opt_cli()
+
+        elif choice == "15":
+            run_scenario_cli()
+
+        elif choice == "16":
+            run_cost_benefit_cli()
 
         elif choice == "0":
             print("Exit")
