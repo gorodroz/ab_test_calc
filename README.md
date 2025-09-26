@@ -119,7 +119,7 @@ Graph saved as bayesian_ab.png
 - [x] Cost-benefit simulation
 
 ### ✧  Stage 7. Visualisation and reports
-- [ ] Best graphs (cumulative results over time)
+- [x] Best graphs (cumulative results over time)
 - [ ] Scatter Expected Value vs Expected Regret
 - [ ] Heatmap of probabilities (for different mde/alpha)
 - [ ] Automatic PDF report with graphs + conclusions

@@ -1,5 +1,6 @@
 import numpy as np
 from tabulate import tabulate
+from visual_mod import plot_cost_benefit
 
 def run_cost_benefit_simulation(cost_params, benefit_params, simulations=10000, discount_rate=0.0, horizon=1):
     costs = np.random.normal(loc=cost_params["mean"], scale=cost_params.get("sd", 0), size=simulations)

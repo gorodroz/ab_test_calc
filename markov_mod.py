@@ -1,5 +1,6 @@
 import numpy as np
 from tabulate import tabulate
+from visual_mod import plot_markov
 
 def build_transition_matrix(data, states):
     n = len(states)
@@ -50,3 +51,4 @@ def print_markov_results(P, states, history, steady, ltv=None):
     print({s: f"{p:.4f}" for s, p in zip(states, steady)})
     if ltv is not None:
         print(f"\nExpected discounted LTV: {ltv:.2f}")
+    #plot_markov()

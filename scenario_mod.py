@@ -1,6 +1,6 @@
 import numpy as np
 from tabulate import tabulate
-
+from visual_mod import plot_scenarios
 
 def run_scenario_analysis(base_params, scenarios, model_func):
     results = {}

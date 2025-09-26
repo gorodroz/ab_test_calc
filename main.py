@@ -14,6 +14,7 @@ from markov_mod import build_transition_matrix, simulate_markov, steady_state, e
 from linear_opt_mod import run_linear_optimization, print_linear_results
 from scenario_mod import run_scenario_analysis, print_scenario_results
 from cost_benefit_mod import run_cost_benefit_simulation, print_cost_benefit_results
+from visual_mod import plot_cumulative_results
 
 logging.basicConfig(
     filename="ab_test_calc_log.txt",
@@ -433,6 +434,10 @@ def run_sequential_cli():
     results = run_sequential_test(data_over_time, kpi_type=kpi_type, alpha=alpha, method=method)
     print_sequential_results(results)
 
+    # === NEW: Visualization after results ===
+    p_values = {r["day"]: r["p_value"] for r in results}
+    plot_cumulative_results(data_over_time, kpi_type=kpi_type, p_values=p_values)
+
 def run_decision_cli():
     print("\n=== Bayesian Decision-Theoretic Analysis ===")
     print("Choose KPI type:")
@@ -592,6 +597,19 @@ def run_cost_benefit_cli():
 
     print_cost_benefit_results(results)
 
+def run_visualization_cli():
+    print("\n=== Visualization of Cumulative Results ===")
+    print("Note: This requires you to have entered sequential data (day by day).")
+
+    #example: you can use the data after run_sequential_cli()
+    data_over_time = {
+        "day1": {"A": {"users": 100, "conversions": 10}, "B": {"users": 120, "conversions": 15}},
+        "day2": {"A": {"users": 200, "conversions": 25}, "B": {"users": 240, "conversions": 30}},
+        "day3": {"A": {"users": 300, "conversions": 45}, "B": {"users": 360, "conversions": 50}},
+    }
+
+    plot_cumulative_results(data_over_time, kpi_type="conversion")
+
 ############################################################################################
 
 #Main CLI
@@ -614,6 +632,7 @@ def main():
         print("14. Linear optimisation")
         print("15. Scenario analysis")
         print("16. Cost-benefit simulation")
+        print("17. Visualization of cumulative results")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
@@ -995,6 +1014,9 @@ def main():
 
         elif choice == "16":
             run_cost_benefit_cli()
+
+        elif choice == "17":
+            run_visualization_cli()
 
         elif choice == "0":
             print("Exit")

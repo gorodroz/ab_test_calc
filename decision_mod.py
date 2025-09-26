@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import beta, norm
 from tabulate import tabulate
-
+from visual_mod import plot_decision_results
 
 def decision_analysis(data, kpi_type="conversion", utility=None, alpha=0.05, simulations=5000):
     if utility is None:
