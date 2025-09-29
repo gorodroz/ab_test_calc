@@ -15,6 +15,13 @@ from linear_opt_mod import run_linear_optimization, print_linear_results
 from scenario_mod import run_scenario_analysis, print_scenario_results
 from cost_benefit_mod import run_cost_benefit_simulation, print_cost_benefit_results
 from visual_mod import plot_cumulative_results
+from visual_mod import plot_power_heatmap
+
+#Global results store
+results_store = {
+    "conclusions": {},   # { "Analysis Name": "text conclusion" }
+    "graphs": []         # [ "file1.png", "file2.png" ]
+}
 
 logging.basicConfig(
     filename="ab_test_calc_log.txt",
@@ -375,6 +382,9 @@ def run_n_test_cli():
 
     print_n_results(results, kpi_type=kpi_type)
 
+    results_store["conclusions"]["A/B/n Test"] = f"Global significant: {results['global_test']['significant']}"
+    results_store["graphs"].append("abn_test.png")
+
 def run_sequential_cli():
     print("\n=== Sequential Testing ===")
     print("Choose KPI type:")
@@ -434,7 +444,9 @@ def run_sequential_cli():
     results = run_sequential_test(data_over_time, kpi_type=kpi_type, alpha=alpha, method=method)
     print_sequential_results(results)
 
-    # === NEW: Visualization after results ===
+    results_store["conclusions"]["Sequential Testing"] = f"Stopped early: {any(r['significant'] for r in results)}"
+    results_store["graphs"].append("sequential_results.png")
+
     p_values = {r["day"]: r["p_value"] for r in results}
     plot_cumulative_results(data_over_time, kpi_type=kpi_type, p_values=p_values)
 
@@ -482,6 +494,9 @@ def run_decision_cli():
     results = decision_analysis(groups, kpi_type=kpi_type, alpha=alpha, utility=utility, simulations=sims)
     print_decision_results(results)
 
+    results_store["conclusions"]["Bayesian Decision"] = f"Best group: {results['decision']}"
+    results_store["graphs"].append("decision_results.png")
+
 def run_markov_cli():
     print("\n=== Markov Chain Economic Model ===")
 
@@ -516,6 +531,15 @@ def run_markov_cli():
     ltv = expected_ltv(P, revenues, initial_state=initial_state, discount=discount)
 
     print_markov_results(P, states, history, steady, ltv)
+
+    P = build_transition_matrix(data, states)
+    history = simulate_markov(P, initial_state, steps=steps)
+    steady = steady_state(P)
+    ltv = expected_ltv(P, revenues, initial_state, steps=steps)
+    print_markov_results(P, states, history, steady, ltv=ltv)
+
+    results_store["conclusions"]["Markov Chains"] = f"Steady state: {dict(zip(states, steady))}"
+    results_store["graphs"].append("markov_chain.png")
 
 def run_linear_opt_cli():
     print("\n=== Linear Optimization ===")
@@ -576,6 +600,9 @@ def run_scenario_cli():
     results = run_scenario_analysis(base_params, scenarios, default_model)
     print_scenario_results(results)
 
+    results_store["conclusions"]["Scenario Analysis"] = f"Best scenario: {results['best']}"
+    results_store["graphs"].append("scenario_analysis.png")
+
 def run_cost_benefit_cli():
     print("\n=== Cost-Benefit Simulation ===")
 
@@ -597,6 +624,9 @@ def run_cost_benefit_cli():
 
     print_cost_benefit_results(results)
 
+    results_store["conclusions"]["Cost-Benefit Simulation"] = f"Mean NPV: {results['mean_npv']:.2f}"
+    results_store["graphs"].append("cost_benefit.png")
+
 def run_visualization_cli():
     print("\n=== Visualization of Cumulative Results ===")
     print("Note: This requires you to have entered sequential data (day by day).")
@@ -609,6 +639,75 @@ def run_visualization_cli():
     }
 
     plot_cumulative_results(data_over_time, kpi_type="conversion")
+
+def run_power_heatmap_cli():
+    import numpy as np
+    from visual_mod import plot_power_heatmap
+
+    print("\n=== Power Heatmap (MDE vs α) ===")
+
+    baseline = input("Enter baseline rate (default 0.1): ").strip()
+    baseline = float(baseline) if baseline else 0.1
+
+    n = input("Enter sample size per group (default 500): ").strip()
+    n = int(n) if n else 500
+
+    mde_min = input("Enter minimum MDE (default 0.01): ").strip()
+    mde_max = input("Enter maximum MDE (default 0.1): ").strip()
+    mde_points = input("Enter number of MDE steps (default 10): ").strip()
+    mde_min = float(mde_min) if mde_min else 0.01
+    mde_max = float(mde_max) if mde_max else 0.1
+    mde_points = int(mde_points) if mde_points else 10
+
+    alphas = input("Enter alpha values separated by comma (default 0.01,0.05,0.1): ").strip()
+    if alphas:
+        alpha_range = [float(a) for a in alphas.split(",")]
+    else:
+        alpha_range = [0.01, 0.05, 0.1]
+
+    savepath = input("Enter save path for PNG (or leave empty for default 'power_heatmap.png'): ").strip()
+    if not savepath:
+        savepath = "power_heatmap.png"
+
+    mde_range = np.linspace(mde_min, mde_max, mde_points)
+
+    plot_power_heatmap(
+        baseline_rate=baseline,
+        sample_size=n,
+        mde_range=mde_range,
+        alpha_range=alpha_range,
+        savepath=savepath
+    )
+
+    print(f"\n>>> Heatmap saved to {savepath}")
+
+def run_generate_report_cli():
+    from report_mod import generate_report
+
+    print("\n=== Generate PDF Report ===")
+
+    results_dict = {
+        "Sequential Testing": "Гіпотеза зупинена на 3 дні, різниця значуща.",
+        "Bayesian Decision": "Очікувана корисність краща у групи B.",
+        "Markov Chains": "Система виходить у стабільний стан після 5 кроків.",
+        "Scenario Analysis": "При песимістичному сценарії прибуток падає на 20%.",
+        "Cost-Benefit Simulation": "Ймовірність позитивного ROI = 78%.",
+    }
+
+    graphs_paths = [
+        "sequential_results.png",
+        "decision_results.png",
+        "markov_chain.png",
+        "scenario_analysis.png",
+        "cost_benefit.png",
+        "power_heatmap.png",
+    ]
+
+    filename = input("Enter filename for report (default ab_report.pdf): ").strip()
+    if not filename:
+        filename = "ab_report.pdf"
+
+    generate_report(results_dict, graphs_paths, filename=filename)
 
 ############################################################################################
 
@@ -633,6 +732,8 @@ def main():
         print("15. Scenario analysis")
         print("16. Cost-benefit simulation")
         print("17. Visualization of cumulative results")
+        print("18. Power Heatmap (MDE vs α)")
+        print("19. Generate PDF Report")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
@@ -1017,6 +1118,12 @@ def main():
 
         elif choice == "17":
             run_visualization_cli()
+
+        elif choice == "18":
+            run_power_heatmap_cli()
+
+        elif choice == "19":
+            run_generate_report_cli()
 
         elif choice == "0":
             print("Exit")

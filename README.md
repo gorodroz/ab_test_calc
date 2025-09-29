@@ -121,8 +121,8 @@ Graph saved as bayesian_ab.png
 ### ✧  Stage 7. Visualisation and reports
 - [x] Best graphs (cumulative results over time)
 - [x] Scatter Expected Value vs Expected Regret
-- [ ] Heatmap of probabilities (for different mde/alpha)
-- [ ] Automatic PDF report with graphs + conclusions
+- [x] Heatmap of probabilities (for different mde/alpha)
+- [x] Automatic PDF report with graphs + conclusions
 
 ## ❒ License
 

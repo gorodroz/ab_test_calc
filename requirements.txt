@@ -5,3 +5,5 @@ pytest
 tabulate
 statsmodels
 seaborn
+pandas
+reportlab
